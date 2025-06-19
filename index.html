@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>The Chess Game</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    
+</head>
+<body>
+    <div class="game-container">
+        <div class="board-section">
+            <div class="header">
+                <h1><i class="fas fa-chess-knight"></i> THE CHESS GAME</h1>
+                <p>Classic Strategy Game</p>
+            </div>
+            
+            <div class="status-bar">
+                <div class="player-turn">
+                    <div class="turn-indicator white"></div>
+                    <span>White's Turn</span>
+                </div>
+                <div class="game-info">Game in progress</div>
+            </div>
+            
+            <div class="chessboard-container">
+                <div class="chessboard" id="chessboard"></div>
+            </div>
+            
+            <div class="captured-pieces">
+                <div class="captured-white">
+                    <div class="captured-title">Captured by White</div>
+                    <div class="captured-container" id="captured-white"></div>
+                </div>
+                <div class="captured-black">
+                    <div class="captured-title">Captured by Black</div>
+                    <div class="captured-container" id="captured-black"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="ui-section">
+            <div class="controls">
+                <button class="btn new-game"><i class="fas fa-plus-circle"></i> New Game</button>
+                <button class="btn undo"><i class="fas fa-undo"></i> Undo</button>
+                <button class="btn hint"><i class="fas fa-lightbulb"></i> Hint</button>
+                <button class="btn settings"><i class="fas fa-cog"></i> Settings</button>
+            </div>
+            
+            <div class="move-history">
+                <h3><i class="fas fa-history"></i> Move History</h3>
+                <div class="moves" id="move-history"></div>
+            </div>
+            
+            <div class="rules-section">
+                <h2><i class="fas fa-book"></i> Chess Rules</h2>
+                <ul class="rules-list">
+                    <li><i class="fas fa-chess-king"></i> <strong>King</strong> moves one square in any direction</li>
+                    <li><i class="fas fa-chess-queen"></i> <strong>Queen</strong> moves any number of squares diagonally, horizontally, or vertically</li>
+                    <li><i class="fas fa-chess-rook"></i> <strong>Rook</strong> moves any number of squares horizontally or vertically</li>
+                    <li><i class="fas fa-chess-bishop"></i> <strong>Bishop</strong> moves any number of squares diagonally</li>
+                    <li><i class="fas fa-chess-knight"></i> <strong>Knight</strong> moves in an L-shape (2 squares one way, 1 square perpendicular)</li>
+                    <li><i class="fas fa-chess-pawn"></i> <strong>Pawn</strong> moves forward one square, captures diagonally</li>
+                    <li><i class="fas fa-chess"></i> <strong>Check</strong> - king is under threat of capture</li>
+                    <li><i class="fas fa-flag"></i> <strong>Checkmate</strong> - king is in check with no legal moves</li>
+                    <li><i class="fas fa-exchange-alt"></i> <strong>Castling</strong> - king and rook move together for protection</li>
+                    <li><i class="fas fa-crown"></i> <strong>Promotion</strong> - pawn reaching opposite side becomes queen</li>
+                    <li><i class="fas fa-stopwatch"></i> <strong>Time Control</strong> - optional time limits for each player</li>
+                    <li><i class="fas fa-hand-paper"></i> <strong>Stalemate</strong> - no legal moves left, game ends in draw</li>
+                </ul>
+            </div>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboardjs/1.0.0/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="script.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js"></script>
+    <script src="https          ://cdnjs.cloudflare.com/ajax/libs/chessboardjs/1.0.0/chessboard-1.0.0.min.js"></script>
+</body>
+</html>
