@@ -1,6 +1,6 @@
 # THE CHESS GAME
 
-A modern, interactive web-based chess game with a beautiful UI, move history, captured pieces display, and built-in chess rules reference. Built using HTML, CSS and JavaScript.
+A modern, interactive web-based chess game with a good UI, move history, captured pieces display, and built-in chess rules reference. Built using HTML, CSS and JavaScript.
 
 ## Features
 
