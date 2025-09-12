@@ -1,4 +1,5 @@
 console.log("Chess game script loaded and running.");
+console.log("jQuery object:", $);
 let board = null;
 const game = new Chess();
 const moveHistory = document.getElementById('move-history');
