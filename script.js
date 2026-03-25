@@ -556,20 +556,14 @@ let game = new GameState();
 let selectedSquare = null;
 let currentLegalMoves = [];
 let pendingPromo = null;
-let gameMode = 'pvp'; // 'pvp', 'pvc-w', 'pvc-b', 'multi'
+let gameMode = 'pvp'; // 'pvp', 'pvc-w', 'pvc-b'
 let aiDifficulty = 2; // 1,2,3
 let isBoardLocked = false;
 let lastMoveHint = null; // {from, to}
 
-let socket = typeof io !== 'undefined' ? io() : null;
-let clientColor = null;
-let currentRoomId = null;
-
-let localPlayerId = localStorage.getItem('chess-player-id');
-if (!localPlayerId) {
-  localPlayerId = Math.random().toString(36).substring(2, 12);
-  localStorage.setItem('chess-player-id', localPlayerId);
-}
+let isReviewMode = false;
+let reviewCurrentMoveIndex = 0;
+let reviewStates = [];
 
 // Elements
 const elBoard = document.getElementById('chess-board');
@@ -648,21 +642,8 @@ function analyzeMoveAsync(state, humanMove) {
   }
 }
 
-function processMoveUI(from, to, promo = null, serverVerified = false) {
-  if (gameMode === 'multi' && !serverVerified) {
-    const files = 'abcdefgh';
-    const ranks = '87654321';
-    let moveObj = {
-      from: files[from.c] + ranks[from.r],
-      to: files[to.c] + ranks[to.r],
-      promotion: promo ? promo.toLowerCase() : undefined
-    };
-    if (socket) socket.emit('move', { roomId: currentRoomId, playerId: localPlayerId, move: moveObj });
-    isBoardLocked = true;
-    return;
-  }
-
-  if (gameMode !== 'multi' && gameMode !== 'pvp' && ((gameMode === 'pvc-w' && game.turn === 'w') || (gameMode === 'pvc-b' && game.turn === 'b'))) {
+function processMoveUI(from, to, promo = null) {
+  if (gameMode !== 'pvp' && ((gameMode === 'pvc-w' && game.turn === 'w') || (gameMode === 'pvc-b' && game.turn === 'b'))) {
     const stateBeforeMove = new GameState(); stateBeforeMove.restore(game.clone());
     const humanMove = { from: {r: from.r, c: from.c}, to: {r: to.r, c: to.c}, promo };
     setTimeout(() => { analyzeMoveAsync(stateBeforeMove, humanMove); }, 0);
@@ -679,7 +660,7 @@ function processMoveUI(from, to, promo = null, serverVerified = false) {
   currentLegalMoves = [];
   render();
 
-  if (!game.isGameOver && gameMode !== 'pvp' && gameMode !== 'multi') {
+  if (!game.isGameOver && gameMode !== 'pvp') {
     if ((gameMode === 'pvc-w' && game.turn === 'b') || (gameMode === 'pvc-b' && game.turn === 'w')) {
       triggerAITurn();
     }
@@ -759,7 +740,7 @@ function render() {
   elTurnText.innerText = game.turn === 'w' ? 'White to Move' : 'Black to Move';
   elindicatorDot.style.color = game.turn === 'w' ? '#f8fafc' : '#1e293b';
 
-  if (game.isGameOver) {
+  if (game.isGameOver && !isReviewMode) {
     elTurnText.innerText = "Game Over";
     elindicatorDot.style.display = 'none';
     elGameState.innerText = game.result;
@@ -837,8 +818,7 @@ function render() {
 }
 
 function onSquareClick(r, c) {
-  if (game.isGameOver || isBoardLocked) return;
-  if (gameMode === 'multi' && game.turn !== clientColor) return;
+  if (game.isGameOver || isBoardLocked || isReviewMode) return;
   const p = game.board[r][c];
 
   const destMove = currentLegalMoves.find(m => m.r === r && m.c === c);
@@ -890,124 +870,56 @@ document.addEventListener('click', () => { if (audioCtx.state === 'suspended') a
 
 document.querySelectorAll('input[name="game-mode"]').forEach(r => {
   r.addEventListener('change', (e) => {
-    document.getElementById('difficulty-group').style.display = e.target.value.startsWith('pvc') ? 'block' : 'none';
-    const isMulti = e.target.value === 'multi';
-    document.getElementById('multiplayer-group').style.display = isMulti ? 'block' : 'none';
-    document.getElementById('btn-start-game').style.display = isMulti ? 'none' : 'block';
+    document.getElementById('difficulty-group').style.display = e.target.value === 'pvp' ? 'none' : 'block';
   });
 });
 
-function rebuildFromServerHistory(history) {
-  gameMode = 'multi';
-  game.reset();
-  if (history && history.length > 0) {
-    for (let m of history) {
-      const files = 'abcdefgh';
-      const ranks = '87654321';
-      const fromR = ranks.indexOf(m.from[1]);
-      const fromC = files.indexOf(m.from[0]);
-      const toR = ranks.indexOf(m.to[1]);
-      const toC = files.indexOf(m.to[0]);
-      const promo = m.promotion ? m.promotion.toUpperCase() : null;
-      
-      const legals = rulesEngine.getLegalMoves(fromR, fromC, game.board, game.turn, game.castling, game.epSquare);
-      const exactMove = legals.find(lm => lm.r === toR && lm.c === toC);
-      if (exactMove) {
-        let isCap = game.board[toR][toC] !== '' || exactMove.isEP;
-        game.makeMove({r:fromR, c:fromC}, exactMove, promo, true);
-        if (m === history[history.length-1]) {
-           if (rulesEngine.isCheck(game.turn, game.board)) playAudio('check');
-           else if (isCap) playAudio('capture');
-           else playAudio('move');
-        }
-      }
+function startReviewMode() {
+  isReviewMode = true;
+  reviewStates = [...game.stateStack, game.clone()];
+  reviewCurrentMoveIndex = reviewStates.length - 1;
+  document.getElementById('controls-panel').classList.add('hidden');
+  document.getElementById('review-controls').classList.remove('hidden');
+  renderReviewMove();
+}
+
+function renderReviewMove() {
+  game.restore(reviewStates[reviewCurrentMoveIndex]);
+  let analysisText = `Reviewing Move ${reviewCurrentMoveIndex}`;
+  if (reviewCurrentMoveIndex > 0 && biggestBlunder) {
+    if (biggestBlunder.humanNotation === game.history[reviewCurrentMoveIndex - 1]) {
+       analysisText = `Mistake! Best alternative was ${biggestBlunder.bestNotation}`;
     }
   }
-  isBoardLocked = false;
+  if (reviewCurrentMoveIndex === reviewStates.length - 1) {
+    analysisText = "Final Board State";
+  }
+  document.getElementById('review-analysis').innerText = analysisText;
+  
+  isReviewMode = true;
   render();
 }
 
-if (socket) {
-  const statusEl = document.getElementById('multi-status');
-  document.getElementById('btn-create-room').onclick = () => {
-    socket.emit('createRoom', { playerId: localPlayerId });
-    statusEl.innerText = 'Creating room...';
-  };
-  document.getElementById('btn-join-room').onclick = () => {
-    const val = document.getElementById('join-room-id').value.trim();
-    if(val) {
-      socket.emit('joinRoom', { roomId: val, playerId: localPlayerId });
-      statusEl.innerText = 'Joining room...';
-    }
-  };
-
-  socket.on('roomCreated', (data) => {
-    currentRoomId = data.roomId;
-    clientColor = data.color;
-    let baseURL = window.location.origin;
-    if (baseURL === 'null' || baseURL === 'file://') {
-      baseURL = 'http://localhost:3000'; // Fallback for local testing
-    }
-    const link = baseURL + window.location.pathname + '?room=' + data.roomId;
-    statusEl.innerHTML = `Room created! ID: <strong>${data.roomId}</strong><br>Share link: <a href="${link}" style="color:var(--accent); word-break: break-all;">${link}</a><br>Waiting for opponent...`;
-  });
-
-  socket.on('roomJoined', (data) => {
-    currentRoomId = data.roomId;
-    clientColor = data.color;
-    statusEl.innerText = 'Joined / Reconnected successfully. Waiting for game sync...';
-    document.getElementById('start-modal').classList.add('hidden');
-    document.getElementById('network-status').style.display = 'block';
-    document.getElementById('network-status').innerText = `Playing as ${clientColor === 'w' ? 'White' : 'Black'} | Room: ${currentRoomId} (Initializing...)`;
-    if (data.history) rebuildFromServerHistory(data.history);
-  });
-
-  socket.on('errorMsg', (msg) => {
-    statusEl.innerText = msg;
-    alert(msg);
-  });
-
-  socket.on('gameSync', (data) => {
-    // Fired on reconnect or completion of joining
-    rebuildFromServerHistory(data.history);
-    if (data.status === 'playing') {
-      document.getElementById('network-status').innerText = `Playing as ${clientColor === 'w' ? 'White' : 'Black'} | Room: ${currentRoomId} (Live)`;
-    } else if (data.status === 'finished') {
-       document.getElementById('network-status').innerText = 'Game Over';
-    }
-  });
-
-  socket.on('playerStatus', (data) => {
-    const oppColor = clientColor === 'w' ? 'b' : 'w';
-    if (data.color === oppColor) {
-      if (!data.connected) {
-         document.getElementById('network-status').innerText = 'Opponent disconnected. Safe to wait.';
-         isBoardLocked = true;
-      } else {
-         document.getElementById('network-status').innerText = `Playing as ${clientColor === 'w' ? 'White' : 'Black'} | Room: ${currentRoomId} (Live)`;
-         isBoardLocked = false;
-      }
-    }
-  });
-
-  socket.on('moveMade', (data) => {
-    rebuildFromServerHistory(data.history);
-    if (data.result) {
-      game.isGameOver = true;
-      game.result = data.result;
-      render(); // to trigger game over modal
-    }
-  });
-
-  document.getElementById('score-display').onclick = () => {
-    if (gameMode === 'multi' && clientColor && !game.isGameOver) {
-      if (confirm('Offer a draw?')) { socket.emit('offerDraw', { roomId: currentRoomId, playerId: localPlayerId }); }
-    }
-  };
-  socket.on('drawOffered', () => {
-    if (confirm('Opponent offered a draw. Accept?')) { socket.emit('acceptDraw', { roomId: currentRoomId, playerId: localPlayerId }); }
-  });
-}
+document.getElementById('btn-review-prev').onclick = () => {
+  if (reviewCurrentMoveIndex > 0) {
+    reviewCurrentMoveIndex--;
+    renderReviewMove();
+  }
+};
+document.getElementById('btn-review-next').onclick = () => {
+  if (reviewCurrentMoveIndex < reviewStates.length - 1) {
+    reviewCurrentMoveIndex++;
+    renderReviewMove();
+  }
+};
+document.getElementById('btn-exit-review').onclick = () => {
+  isReviewMode = false;
+  reviewCurrentMoveIndex = reviewStates.length - 1;
+  game.restore(reviewStates[reviewCurrentMoveIndex]);
+  document.getElementById('review-controls').classList.add('hidden');
+  document.getElementById('controls-panel').classList.remove('hidden');
+  document.getElementById('game-over-modal').classList.remove('hidden'); // popup again
+};
 
 document.getElementById('btn-start-game').onclick = () => {
   document.getElementById('start-modal').classList.add('hidden');
@@ -1026,14 +938,23 @@ document.getElementById('btn-new-game').onclick = () => {
   document.getElementById('promotion-modal').classList.add('hidden');
   document.getElementById('game-over-modal').classList.add('hidden');
   document.getElementById('start-modal').classList.remove('hidden');
-  document.getElementById('network-status').style.display = 'none';
+  
+  if (isReviewMode) {
+    document.getElementById('review-controls').classList.add('hidden');
+    document.getElementById('controls-panel').classList.remove('hidden');
+    isReviewMode = false;
+  }
 };
 
 document.getElementById('btn-play-again').onclick = document.getElementById('btn-new-game').onclick;
-document.getElementById('btn-close-game-over').onclick = () => document.getElementById('game-over-modal').classList.add('hidden');
+
+document.getElementById('btn-close-game-over').onclick = () => {
+  document.getElementById('game-over-modal').classList.add('hidden');
+  startReviewMode();
+};
 
 document.getElementById('btn-undo').onclick = () => {
-  if (isBoardLocked || gameMode === 'multi') return; // Cannot undo online
+  if (isBoardLocked || isReviewMode) return;
   document.getElementById('promotion-modal').classList.add('hidden');
   document.getElementById('game-over-modal').classList.add('hidden');
   pendingPromo = null;
@@ -1078,14 +999,3 @@ document.getElementById('setting-theme').onchange = saveLocal;
 // Init
 loadLocal();
 render();
-
-const urlParams = new URLSearchParams(window.location.search);
-const roomToJoin = urlParams.get('room');
-if (roomToJoin) {
-  const multiRadio = document.querySelector('input[name="game-mode"][value="multi"]');
-  if (multiRadio) multiRadio.checked = true;
-  document.getElementById('difficulty-group').style.display = 'none';
-  document.getElementById('multiplayer-group').style.display = 'block';
-  document.getElementById('btn-start-game').style.display = 'none';
-  document.getElementById('join-room-id').value = roomToJoin;
-}
