@@ -390,6 +390,7 @@ button.btn.primary:hover {
   font-weight: 600;
   color: var(--text-muted);
 }
+.adv-badge.hidden { display: none; }
 
 /* History */
 .history-list-wrapper {
@@ -591,6 +592,7 @@ button.btn.primary:hover {
   z-index: 50;
   border: 2px solid var(--accent);
 }
+.promotion-modal.hidden { display: none; }
 .promotion-options { display: flex; gap: 1rem; margin-top: 1rem; }
 .promo-piece {
   font-size: 3.5rem;
