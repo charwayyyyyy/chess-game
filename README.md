@@ -1,4 +1,4 @@
-# Premium Chess Engine
+# Chess Engine
 
 A fully functional, client-side browser chess application built with HTML, CSS, and vanilla JavaScript. 
 
