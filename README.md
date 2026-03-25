@@ -1,38 +1,30 @@
-# THE CHESS GAME
+# Premium Chess Engine
 
-A modern, interactive web-based chess game with a good UI, move history, captured pieces display, and a simple AI opponent. Built using HTML, CSS and JavaScript.
-
-This project has been refactored to use the powerful `chess.js` library for game logic and `chessboard.js` for the user interface, providing a robust and bug-free chess experience.
+A fully functional, client-side browser chess application built with HTML, CSS, and vanilla JavaScript. 
 
 ## Features
 
-- **Interactive Chessboard**: Drag-and-drop pieces with smooth animations.
-- **Player vs. Computer**: Play against a simple AI that makes random legal moves.
-- **Correct Chess Logic**: All rules of chess are enforced by the `chess.js` library.
-- **Move History**: Track all moves made during the game.
-- **Player Turn Indicator**: Visual cue for whose turn it is.
-- **Game Status**: Displays current game state (in progress, check, checkmate, draw).
-- **Controls**: New Game and Undo buttons.
+- **Rules Engine:** Implements all standard chess movement rules, including castling, en passant, and pawn promotion.
+- **Client-Side AI:** A Minimax algorithm with Alpha-Beta pruning runs locally on the main thread.
+  - *Easy (Depth 1)*: Makes rapid, mostly greedy choices.
+  - *Medium (Depth 2)*: Looks a full turn ahead (1 ply human, 1 ply AI), avoiding hanging pieces.
+  - *Hard (Depth 4)*: Deep search (2 full turns). **Note:** Since the engine does not use a Web Worker, calculating depth 4 blocking the main thread can cause the UI (including the "thinking" spinner) to momentarily freeze for 1-5 seconds depending on board complexity.
+- **Opening Book:** The AI checks a hardcoded `OPENING_BOOK` dictionary comparing the Algebraic Long Notation (LAN) history. It covers responses for the first few plies of specific openings:
+  - e4 and d4 mainlines
+  - Sicilian, Caro-Kann, French Defense
+  - Queen's Gambit, Indian configurations
+  - Ruy Lopez and Italian Game basics
+- **Local ELO Rating:** Players are assigned a starting Elo of 1200. Playing against the AI uses a standard K=32 Elo calculation (treating AI ratings as fixed: Easy=800, Med=1200, Hard=1600). The updated Elo rating is persisted natively in the browser's `localStorage`. This requires no servers or databases.
+- **Game Analysis:** When playing against the AI, your moves are asynchronously evaluated (using a shallow Depth-1 comparison against a Depth-2 algorithmic "best" alternative). At the end of the game, if your worst move caused a positional evaluation drop greater than 45 points, the UI will highlight your biggest mistake and display the better alternative. 
+  - *Note:* Because the comparison utilizes a very shallow internal minimax evaluation, it only detects immediate, superficial material/positional drops (e.g., blatantly hanging a knight or missing an obvious recapture).
 
-## Technologies Used
+## Installation
 
-- **HTML5 & CSS3**: Structure and styling
-- **JavaScript (ES6+)**: Game logic and interactivity
-- **[jQuery](https://jquery.com/)**: DOM manipulation (used by chessboard.js)
-- **[chess.js](https://github.com/jhlywa/chess.js/)**: Chess rules and move validation
-- **[chessboard.js](https://chessboardjs.com/)**: Interactive chessboard UI
-- **[Font Awesome](https://fontawesome.com/)**: Icons
+No build steps are required. Simply open `index.html` in any modern web browser. 
 
-## Getting Started
+## UI / UX
+- Utilizes CSS variables and dynamically injected coordinate labels for a clean, customizable board layout.
+- Employs strict state checks and pointer-events handling for modal overlays to prevent accidental background layer clicks or invisible ghost elements from intercepting user actions.
 
-1. **Clone or Download** this repository.
-2. **Open `index.html`** in your web browser.
-3. **Play Chess!**
-
-No build steps or server required—everything runs in the browser.
-
-## File Structure
-
-- `index.html` — Main HTML file
-- `style.css` — Custom styles
-- `script.js` — Game logic and UI interactions, using chess.js and chessboard.js
+## State Management Quirks
+- **Undo Feature:** Undoing a move correctly restores the board, pieces, layout, and opening-book tracking elements via cloning. However, doing so immediately clears out any Game Analysis tracked up to that point to avoid showing blunders that you actually erased from the board timeline.

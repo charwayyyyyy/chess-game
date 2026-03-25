@@ -186,7 +186,7 @@ h1, h2, h3, .subtitle, .turn-indicator {
 .board-wrapper {
   position: relative;
   background: var(--panel-bg);
-  padding: 1rem;
+  padding: 1.25rem 1rem 1rem 1.25rem;
   border-radius: calc(var(--border-radius) + 8px);
   box-shadow: var(--shadow-md);
   border: 1px solid var(--panel-border);
@@ -231,30 +231,31 @@ h1, h2, h3, .subtitle, .turn-indicator {
   pointer-events: none;
 }
 
-/* Coordinates */
-.coord {
+/* Extracted Coordinates (Outside the Board) */
+.coord-out {
   position: absolute;
-  font-size: 0.65rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  opacity: 0.8;
+  color: var(--text-muted);
   font-family: var(--font-ui);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
-.coord.rank { top: 2px; left: 3px; }
-.coord.file { bottom: 0px; right: 3px; }
-.square.light .coord { color: var(--board-dark); }
-.square.dark .coord { color: var(--board-light); }
+.rank-out { left: 10px; }
+.file-out { bottom: 0px; }
 
 /* Pieces */
 .piece {
   font-size: calc(3vw + 1.2rem);
   line-height: 1;
   cursor: pointer;
-  z-index: 10; /* Z-INDEX: Pieces above square backgrounds and hint dots */
+  z-index: 10;
+  color: var(--text-main); /* Unicode naturally differentiates white vs black */
   transition: transform 0.15s ease-out, filter 0.15s ease-out;
   will-change: transform;
 }
 @media (min-width: 800px) {
-  .piece { font-size: 4rem; }
+  .piece { font-size: 3.8rem; }
 }
 
 .piece:hover {
@@ -263,12 +264,10 @@ h1, h2, h3, .subtitle, .turn-indicator {
 }
 
 .white-piece {
-  color: #fff;
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.4));
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.35));
 }
 .black-piece {
-  color: #1a1a1a;
-  filter: drop-shadow(0 1px 1px rgba(255,255,255,0.3));
+  filter: drop-shadow(0 1px 1.5px rgba(255,255,255,0.4));
 }
 
 /* Hint Indicators */

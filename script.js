@@ -11,7 +11,7 @@ const PIECES = {
   p: 'p', n: 'n', b: 'b', r: 'r', q: 'q', k: 'k'
 };
 const UNICODE_PIECES = {
-  P: '♟', N: '♞', B: '♝', R: '♜', Q: '♛', K: '♚',
+  P: '♙', N: '♘', B: '♗', R: '♖', Q: '♕', K: '♔',
   p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚'
 };
 const VALS = { P: 10, N: 30, B: 31, R: 50, Q: 90, K: 9000, p: 10, n: 30, b: 31, r: 50, q: 90, k: 9000 };
@@ -237,6 +237,7 @@ class GameState {
     this.stateStack = []; // Deep copies for Undo
     this.isGameOver = false;
     this.result = null;
+    this.resultProcessed = false;
   }
 
   clone() {
@@ -251,7 +252,8 @@ class GameState {
       history: [...this.history],
       lanHistory: [...this.lanHistory],
       isGameOver: this.isGameOver,
-      result: this.result
+      result: this.result,
+      resultProcessed: this.resultProcessed
     };
   }
 
@@ -267,6 +269,7 @@ class GameState {
     this.lanHistory = [...state.lanHistory];
     this.isGameOver = state.isGameOver;
     this.result = state.result;
+    this.resultProcessed = state.resultProcessed;
   }
 
   getNotation(from, to, p, isCapture, isCastle, isEP, promoType) {
@@ -285,7 +288,7 @@ class GameState {
   }
 
   // Executes a move internally without triggering UI
-  makeMove(from, to, promoType = null) {
+  makeMove(from, to, promoType = null, isSimulation = false) {
     this.stateStack.push(this.clone());
 
     const p = this.board[from.r][from.c];
@@ -359,11 +362,13 @@ class GameState {
       this.result = 'Draw by Fifty-Move Rule';
     }
 
-    this.history.push(notation);
-    let files = 'abcdefgh'; let ranks = '87654321';
-    let lan = files[from.c]+ranks[from.r]+files[to.c]+ranks[to.r];
-    if (promoType) lan += promoType.toLowerCase();
-    this.lanHistory.push(lan);
+    if (!isSimulation) {
+      this.history.push(notation);
+      let files = 'abcdefgh'; let ranks = '87654321';
+      let lan = files[from.c]+ranks[from.r]+files[to.c]+ranks[to.r];
+      if (promoType) lan += promoType.toLowerCase();
+      this.lanHistory.push(lan);
+    }
     return isCapture; // UI can use this
   }
 
@@ -422,6 +427,18 @@ const aiEngine = {
     return null;
   },
 
+  orderMoves(moves, board) {
+    return moves.sort((a, b) => {
+      let scoreA = 0, scoreB = 0;
+      let tarA = board[a.to.r][a.to.c]; let tarB = board[b.to.r][b.to.c];
+      if (tarA) scoreA = 10 * VALS[tarA] - VALS[board[a.from.r][a.from.c]];
+      if (tarB) scoreB = 10 * VALS[tarB] - VALS[board[b.from.r][b.from.c]];
+      if (a.to.isPromo) scoreA += 80;
+      if (b.to.isPromo) scoreB += 80;
+      return scoreB - scoreA;
+    });
+  },
+
   getBestMove(gameRef, depthLevel) {
     if (depthLevel >= 2) {
       const bookMove = this.getBestBookMove(gameRef);
@@ -437,7 +454,7 @@ const aiEngine = {
     let bestMoves = [];
     let bestScore = clone.turn === 'w' ? -Infinity : Infinity;
 
-    const moves = rulesEngine.getAllLegalMoves(clone.board, clone.turn, clone.castling, clone.epSquare);
+    const moves = this.orderMoves(rulesEngine.getAllLegalMoves(clone.board, clone.turn, clone.castling, clone.epSquare), clone.board);
     if (moves.length === 0) return null;
 
     for (let m of moves) {
@@ -445,8 +462,7 @@ const aiEngine = {
       const p = clone.board[m.from.r][m.from.c];
       const isPromo = p.toLowerCase() === 'p' && (m.to.r === 0 || m.to.r === 7);
       
-      clone.stateStack.push(clone.clone());
-      const res = clone.makeMove(m.from, m.to, isPromo ? 'Q' : null);
+      const res = clone.makeMove(m.from, m.to, isPromo ? 'Q' : null, true);
       
       // Minimax
       let score = this.minimax(clone, maxDepth - 1, -Infinity, Infinity, clone.turn === 'w');
@@ -471,14 +487,13 @@ const aiEngine = {
       return this.evaluateState(state);
     }
 
-    const moves = rulesEngine.getAllLegalMoves(state.board, state.turn, state.castling, state.epSquare);
+    const moves = this.orderMoves(rulesEngine.getAllLegalMoves(state.board, state.turn, state.castling, state.epSquare), state.board);
 
     if (isMaximizingPlayer) {
       let maxEval = -Infinity;
       for (let m of moves) {
         const isPromo = state.board[m.from.r][m.from.c].toLowerCase() === 'p' && (m.to.r === 0 || m.to.r === 7);
-        state.stateStack.push(state.clone());
-        state.makeMove(m.from, m.to, isPromo ? 'Q' : null);
+        state.makeMove(m.from, m.to, isPromo ? 'Q' : null, true);
         let ev = this.minimax(state, depth - 1, alpha, beta, false);
         state.undo();
         maxEval = Math.max(maxEval, ev);
@@ -490,8 +505,7 @@ const aiEngine = {
       let minEval = Infinity;
       for (let m of moves) {
         const isPromo = state.board[m.from.r][m.from.c].toLowerCase() === 'p' && (m.to.r === 0 || m.to.r === 7);
-        state.stateStack.push(state.clone());
-        state.makeMove(m.from, m.to, isPromo ? 'q' : null);
+        state.makeMove(m.from, m.to, isPromo ? 'q' : null, true);
         let ev = this.minimax(state, depth - 1, alpha, beta, true);
         state.undo();
         minEval = Math.min(minEval, ev);
@@ -604,16 +618,18 @@ function playAudio(type) {
 function analyzeMoveAsync(state, humanMove) {
   const bestMove = aiEngine.getBestMove(state, 2);
   if (!bestMove || (bestMove.from.r === humanMove.from.r && bestMove.from.c === humanMove.from.c && bestMove.to.r === humanMove.to.r && bestMove.to.c === humanMove.to.c)) return;
-  state.stateStack.push(state.clone());
-  state.makeMove(bestMove.from, bestMove.to, bestMove.promo || null);
+  
+  // Make best move correctly without duplicate stacking
+  state.makeMove(bestMove.from, bestMove.to, bestMove.promo || null, false);
   const bestNotation = state.history[state.history.length - 1];
   let bestEval = aiEngine.minimax(state, 1, -Infinity, Infinity, state.turn === 'w');
   state.undo();
-  state.stateStack.push(state.clone());
-  state.makeMove(humanMove.from, humanMove.to, humanMove.promo || null);
+  
+  state.makeMove(humanMove.from, humanMove.to, humanMove.promo || null, false);
   const humanNotation = state.history[state.history.length - 1];
   let humanEval = aiEngine.minimax(state, 1, -Infinity, Infinity, state.turn === 'w');
   state.undo();
+  
   let diff = state.turn === 'w' ? (bestEval - humanEval) : (humanEval - bestEval);
   if (diff > 45) { // Roughly 1.5 minor pieces drop
     if (!biggestBlunder || diff > biggestBlunder.diff) {
@@ -666,6 +682,16 @@ function triggerAITurn() {
 }
 
 function render() {
+  document.querySelectorAll('.coord-out').forEach(e => e.remove());
+  if (settings.coords) {
+    for (let i=0; i<8; i++) {
+      const rk = document.createElement('div'); rk.className='coord-out rank-out'; rk.innerText='87654321'[i]; rk.style.top = `calc(${i*12.5}% + 6.25%)`;
+      const fl = document.createElement('div'); fl.className='coord-out file-out'; fl.innerText='abcdefgh'[i]; fl.style.left = `calc(${i*12.5}% + 6.25%)`;
+      elBoard.parentElement.appendChild(rk);
+      elBoard.parentElement.appendChild(fl);
+    }
+  }
+
   elBoard.innerHTML = '';
   const inCheckC = rulesEngine.isCheck(game.turn, game.board) ? game.turn : null;
 
@@ -690,11 +716,7 @@ function render() {
         }
       }
 
-      // Coords
-      if (settings.coords) {
-        if (c === 0) { const el = document.createElement('span'); el.className='coord rank'; el.innerText='87654321'[r]; sq.appendChild(el); }
-        if (r === 7) { const el = document.createElement('span'); el.className='coord file'; el.innerText='abcdefgh'[c]; sq.appendChild(el); }
-      }
+      // Coords handled outside of .square rendering now via absolute placement.
 
       if (p !== '') {
         const pEl = document.createElement('div');
@@ -719,19 +741,22 @@ function render() {
     elGameState.style.color = 'var(--danger)';
     elGameState.style.fontWeight = 'bold';
     
-    // Compute ELO
-    let eloChange = 0;
-    if (gameMode !== 'pvp') {
+    // Compute ELO exactly once
+    if (gameMode !== 'pvp' && !game.resultProcessed) {
       const isUserWhite = gameMode === 'pvc-w';
       const aiElo = aiDifficulty === 1 ? 800 : (aiDifficulty === 2 ? 1200 : 1600);
       let userScore = 0.5;
       if (game.result.includes('White Wins')) userScore = isUserWhite ? 1 : 0;
       else if (game.result.includes('Black Wins')) userScore = isUserWhite ? 0 : 1;
       const expected = 1 / (1 + Math.pow(10, (aiElo - userStats.elo) / 400));
-      eloChange = Math.round(32 * (userScore - expected));
+      const eloChange = Math.round(32 * (userScore - expected));
       userStats.elo += eloChange;
+      userStats.latestChange = eloChange; // store for rendering without re-calculating
       localStorage.setItem('chess-elo-v2', userStats.elo);
+      game.resultProcessed = true;
     }
+    
+    const eloChange = userStats.latestChange || 0;
     
     const eloEl = document.getElementById('game-over-elo');
     if (eloEl) {
@@ -870,14 +895,15 @@ document.getElementById('btn-undo').onclick = () => {
   document.getElementById('promotion-modal').classList.add('hidden');
   document.getElementById('game-over-modal').classList.add('hidden');
   pendingPromo = null;
+  biggestBlunder = null; // Fix: Prevent undone mistakes from sticking around
 
-  if (gameMode === 'pvp' || game.isGameOver) {
+  if (gameMode === 'pvp') {
     game.undo();
   } else {
-    // PVC mode -> undo twice if it's currently human turn, or undo once if human just lost?
-    // If it's my turn, AI just went. So undo AI, then undo ME.
-    game.undo();
-    game.undo();
+    game.undo(); // Undo AI move
+    if (game.turn !== (gameMode === 'pvc-w' ? 'w' : 'b')) {
+      game.undo(); // Undo human move if AI hadn't moved yet
+    }
   }
   lastMoveHint = null; // Clear hint
   selectedSquare = null;
