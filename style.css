@@ -81,7 +81,7 @@ h1, h2, h3, .subtitle, .turn-indicator {
 .app-header {
   text-align: center;
   margin-bottom: 2rem;
-  z-index: 10;
+  z-index: 10; /* Z-INDEX: Above background, below modals */
 }
 
 .app-header h1 {
@@ -249,7 +249,7 @@ h1, h2, h3, .subtitle, .turn-indicator {
   font-size: calc(3vw + 1.2rem);
   line-height: 1;
   cursor: pointer;
-  z-index: 10;
+  z-index: 10; /* Z-INDEX: Pieces above square backgrounds and hint dots */
   transition: transform 0.15s ease-out, filter 0.15s ease-out;
   will-change: transform;
 }
@@ -279,7 +279,7 @@ h1, h2, h3, .subtitle, .turn-indicator {
   border-radius: 50%;
   position: absolute;
   pointer-events: none;
-  z-index: 5;
+  z-index: 5; /* Z-INDEX: Hint modifiers sit below pieces (10) */
 }
 
 .legal-move-capture {
@@ -289,7 +289,7 @@ h1, h2, h3, .subtitle, .turn-indicator {
   border-radius: 50%;
   position: absolute;
   pointer-events: none;
-  z-index: 5;
+  z-index: 5; /* Z-INDEX: Hint modifiers sit below pieces (10) */
 }
 
 /* PANELS */
@@ -448,14 +448,16 @@ button.btn.primary:hover {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 1000; /* Z-INDEX: Full-screen modal overlays, highest layer */
   opacity: 1;
-  transition: opacity 0.3s ease;
+  visibility: visible;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
 }
 
 .modal-overlay.hidden {
   opacity: 0;
-  pointer-events: none;
+  pointer-events: none; /* Safely removes click interception */
+  visibility: hidden; /* Strictly hides element when fully transparent */
 }
 
 .modal {
@@ -563,7 +565,7 @@ button.btn.primary:hover {
   align-items: center;
   gap: 1rem;
   font-weight: 600;
-  z-index: 50;
+  z-index: 50; /* Z-INDEX: Local board overlays, above pieces (10) but below full screen modals */
   border: 2px solid var(--accent);
   backdrop-filter: blur(10px);
 }
@@ -589,7 +591,7 @@ button.btn.primary:hover {
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-lg);
   text-align: center;
-  z-index: 50;
+  z-index: 50; /* Z-INDEX: Local board overlays, above pieces (10) but below full screen modals */
   border: 2px solid var(--accent);
 }
 .promotion-modal.hidden { display: none; }
