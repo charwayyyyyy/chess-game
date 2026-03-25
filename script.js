@@ -565,6 +565,12 @@ let socket = typeof io !== 'undefined' ? io() : null;
 let clientColor = null;
 let currentRoomId = null;
 
+let localPlayerId = localStorage.getItem('chess-player-id');
+if (!localPlayerId) {
+  localPlayerId = Math.random().toString(36).substring(2, 12);
+  localStorage.setItem('chess-player-id', localPlayerId);
+}
+
 // Elements
 const elBoard = document.getElementById('chess-board');
 const elTurnText = document.getElementById('turn-text');
@@ -651,7 +657,7 @@ function processMoveUI(from, to, promo = null, serverVerified = false) {
       to: files[to.c] + ranks[to.r],
       promotion: promo ? promo.toLowerCase() : undefined
     };
-    if (socket) socket.emit('move', { roomId: currentRoomId, move: moveObj });
+    if (socket) socket.emit('move', { roomId: currentRoomId, playerId: localPlayerId, move: moveObj });
     isBoardLocked = true;
     return;
   }
@@ -891,16 +897,46 @@ document.querySelectorAll('input[name="game-mode"]').forEach(r => {
   });
 });
 
+function rebuildFromServerHistory(history) {
+  gameMode = 'multi';
+  game.reset();
+  if (history && history.length > 0) {
+    for (let m of history) {
+      const files = 'abcdefgh';
+      const ranks = '87654321';
+      const fromR = ranks.indexOf(m.from[1]);
+      const fromC = files.indexOf(m.from[0]);
+      const toR = ranks.indexOf(m.to[1]);
+      const toC = files.indexOf(m.to[0]);
+      const promo = m.promotion ? m.promotion.toUpperCase() : null;
+      
+      const legals = rulesEngine.getLegalMoves(fromR, fromC, game.board, game.turn, game.castling, game.epSquare);
+      const exactMove = legals.find(lm => lm.r === toR && lm.c === toC);
+      if (exactMove) {
+        let isCap = game.board[toR][toC] !== '' || exactMove.isEP;
+        game.makeMove({r:fromR, c:fromC}, exactMove, promo, true);
+        if (m === history[history.length-1]) {
+           if (rulesEngine.isCheck(game.turn, game.board)) playAudio('check');
+           else if (isCap) playAudio('capture');
+           else playAudio('move');
+        }
+      }
+    }
+  }
+  isBoardLocked = false;
+  render();
+}
+
 if (socket) {
   const statusEl = document.getElementById('multi-status');
   document.getElementById('btn-create-room').onclick = () => {
-    socket.emit('createRoom');
+    socket.emit('createRoom', { playerId: localPlayerId });
     statusEl.innerText = 'Creating room...';
   };
   document.getElementById('btn-join-room').onclick = () => {
     const val = document.getElementById('join-room-id').value.trim();
     if(val) {
-      socket.emit('joinRoom', val);
+      socket.emit('joinRoom', { roomId: val, playerId: localPlayerId });
       statusEl.innerText = 'Joining room...';
     }
   };
@@ -919,43 +955,57 @@ if (socket) {
   socket.on('roomJoined', (data) => {
     currentRoomId = data.roomId;
     clientColor = data.color;
-    statusEl.innerText = 'Joined room successfully. Starting...';
+    statusEl.innerText = 'Joined / Reconnected successfully. Waiting for game sync...';
+    document.getElementById('start-modal').classList.add('hidden');
+    document.getElementById('network-status').style.display = 'block';
+    document.getElementById('network-status').innerText = `Playing as ${clientColor === 'w' ? 'White' : 'Black'} | Room: ${currentRoomId} (Initializing...)`;
+    if (data.history) rebuildFromServerHistory(data.history);
   });
 
   socket.on('errorMsg', (msg) => {
     statusEl.innerText = msg;
+    alert(msg);
   });
 
-  socket.on('gameStart', () => {
-    document.getElementById('start-modal').classList.add('hidden');
-    gameMode = 'multi';
-    game.reset();
-    isBoardLocked = false;
-    document.getElementById('network-status').style.display = 'block';
-    document.getElementById('network-status').innerText = `Playing as ${clientColor === 'w' ? 'White' : 'Black'} | Room: ${currentRoomId}`;
-    render();
+  socket.on('gameSync', (data) => {
+    // Fired on reconnect or completion of joining
+    rebuildFromServerHistory(data.history);
+    if (data.status === 'playing') {
+      document.getElementById('network-status').innerText = `Playing as ${clientColor === 'w' ? 'White' : 'Black'} | Room: ${currentRoomId} (Live)`;
+    } else if (data.status === 'finished') {
+       document.getElementById('network-status').innerText = 'Game Over';
+    }
   });
 
-  socket.on('opponentDisconnected', () => {
-    document.getElementById('network-status').innerText = 'Opponent disconnected.';
-    isBoardLocked = true;
+  socket.on('playerStatus', (data) => {
+    const oppColor = clientColor === 'w' ? 'b' : 'w';
+    if (data.color === oppColor) {
+      if (!data.connected) {
+         document.getElementById('network-status').innerText = 'Opponent disconnected. Safe to wait.';
+         isBoardLocked = true;
+      } else {
+         document.getElementById('network-status').innerText = `Playing as ${clientColor === 'w' ? 'White' : 'Black'} | Room: ${currentRoomId} (Live)`;
+         isBoardLocked = false;
+      }
+    }
   });
 
   socket.on('moveMade', (data) => {
-    const files = 'abcdefgh';
-    const ranks = '87654321';
-    const fromR = ranks.indexOf(data.move.from[1]);
-    const fromC = files.indexOf(data.move.from[0]);
-    const toR = ranks.indexOf(data.move.to[1]);
-    const toC = files.indexOf(data.move.to[0]);
-    const promo = data.move.promotion ? data.move.promotion : null;
-
-    isBoardLocked = false; 
-    const legals = rulesEngine.getLegalMoves(fromR, fromC, game.board, game.turn, game.castling, game.epSquare);
-    const exactMove = legals.find(m => m.r === toR && m.c === toC);
-    if(exactMove) {
-       processMoveUI({r:fromR, c:fromC}, exactMove, promo, true);
+    rebuildFromServerHistory(data.history);
+    if (data.result) {
+      game.isGameOver = true;
+      game.result = data.result;
+      render(); // to trigger game over modal
     }
+  });
+
+  document.getElementById('score-display').onclick = () => {
+    if (gameMode === 'multi' && clientColor && !game.isGameOver) {
+      if (confirm('Offer a draw?')) { socket.emit('offerDraw', { roomId: currentRoomId, playerId: localPlayerId }); }
+    }
+  };
+  socket.on('drawOffered', () => {
+    if (confirm('Opponent offered a draw. Accept?')) { socket.emit('acceptDraw', { roomId: currentRoomId, playerId: localPlayerId }); }
   });
 }
 
@@ -983,7 +1033,7 @@ document.getElementById('btn-play-again').onclick = document.getElementById('btn
 document.getElementById('btn-close-game-over').onclick = () => document.getElementById('game-over-modal').classList.add('hidden');
 
 document.getElementById('btn-undo').onclick = () => {
-  if (isBoardLocked) return; // Cannot undo while AI thinking
+  if (isBoardLocked || gameMode === 'multi') return; // Cannot undo online
   document.getElementById('promotion-modal').classList.add('hidden');
   document.getElementById('game-over-modal').classList.add('hidden');
   pendingPromo = null;
