@@ -223,6 +223,11 @@ class Chess {
       bClone[r][c] = '';
       if (m.isEP) bClone[r][m.c] = ''; // remove captured pawn
       
+      if (m.isCastle) {
+        if (m.c === 6) { bClone[m.r][5] = bClone[m.r][7]; bClone[m.r][7] = ''; } // Kingside
+        else { bClone[m.r][3] = bClone[m.r][0]; bClone[m.r][0] = ''; } // Queenside
+      }
+      
       if (!this.isCheck(this.turn, bClone)) {
         legalMoves.push(m);
       }
@@ -364,6 +369,9 @@ class Chess {
         this.isGameOver = true;
         this.result = 'Draw by Stalemate';
       }
+    } else if (this.halfMoves >= 100) {
+      this.isGameOver = true;
+      this.result = 'Draw by Fifty-Move Rule';
     }
 
     this.moveLog.push(moveNotation);
@@ -675,13 +683,16 @@ function getHint() {
   let bestMove = null;
 
   for (let fm of moves) {
-    // simulate
-    const clone = new Chess();
-    clone.restoreState(game.cloneState());
-    clone.makeMove(fm.from, fm.to);
-    
-    // Evaluate material from current player perspective
-    const mat = clone.evaluateMaterial();
+      // simulate
+      const clone = new Chess();
+      clone.restoreState(game.cloneState());
+      
+      const p = clone.board[fm.from.r][fm.from.c];
+      const isPromo = p.toLowerCase() === 'p' && (fm.to.r === 0 || fm.to.r === 7);
+      clone.makeMove(fm.from, fm.to, isPromo ? 'Q' : null);
+      
+      // Evaluate material from current player perspective
+      const mat = clone.evaluateMaterial();
     let score = game.turn === 'w' ? mat.diff : -mat.diff;
     
     // Bonus for check
@@ -712,7 +723,9 @@ btnNewGame.onclick = () => {
   game.reset();
   selectedSquare = null;
   currentLegalMoves = [];
+  pendingPromotionMove = null;
   gameOverModal.classList.add('hidden');
+  promoModal.classList.add('hidden');
   renderBoard();
 };
 
@@ -723,7 +736,9 @@ btnUndo.onclick = () => {
   if (game.undo()) {
     selectedSquare = null;
     currentLegalMoves = [];
+    pendingPromotionMove = null;
     gameOverModal.classList.add('hidden');
+    promoModal.classList.add('hidden');
     renderBoard();
   }
 };
