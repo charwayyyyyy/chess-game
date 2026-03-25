@@ -153,6 +153,18 @@
     <div class="modal game-over fade-in-scale">
       <h2 id="game-over-title">Checkmate</h2>
       <p id="game-over-message" class="subtitle">White Wins</p>
+      
+      <div id="game-analysis-section" style="margin-top: 1rem; padding: 1rem; background: rgba(0,0,0,0.05); border-radius: 8px; text-align: left;">
+        <p style="font-weight: 600; margin-bottom: 0.5rem; display: flex; justify-content: space-between;">
+          <span>Player ELO: <span id="game-over-elo">1200</span></span>
+          <span id="game-over-elo-change" style="font-weight: 700;"></span>
+        </p>
+        <div id="mistake-analysis" style="display: none;">
+          <h4 style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem;">Game Analysis</h4>
+          <p id="analysis-mistake-text" style="font-size: 0.95rem; color: var(--danger); margin-bottom: 0.25rem;"></p>
+          <p id="analysis-best-alt" style="font-size: 0.95rem; color: var(--accent);"></p>
+        </div>
+      </div>
       <div class="modal-actions center-align mt-2">
         <button class="btn primary btn-animate" id="btn-play-again">Review & Play Again</button>
         <button class="btn btn-animate" id="btn-close-game-over">View Board</button>

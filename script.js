@@ -232,6 +232,7 @@ class GameState {
     this.halfMoves = 0;
     this.fullMoves = 1;
     this.history = []; // String notation
+    this.lanHistory = []; // LAN Strings for opening book
     this.captured = { w: [], b: [] };
     this.stateStack = []; // Deep copies for Undo
     this.isGameOver = false;
@@ -248,6 +249,7 @@ class GameState {
       fullMoves: this.fullMoves,
       captured: { w: [...this.captured.w], b: [...this.captured.b] },
       history: [...this.history],
+      lanHistory: [...this.lanHistory],
       isGameOver: this.isGameOver,
       result: this.result
     };
@@ -262,6 +264,7 @@ class GameState {
     this.fullMoves = state.fullMoves;
     this.captured = { w: [...state.captured.w], b: [...state.captured.b] };
     this.history = [...state.history];
+    this.lanHistory = [...state.lanHistory];
     this.isGameOver = state.isGameOver;
     this.result = state.result;
   }
@@ -357,6 +360,10 @@ class GameState {
     }
 
     this.history.push(notation);
+    let files = 'abcdefgh'; let ranks = '87654321';
+    let lan = files[from.c]+ranks[from.r]+files[to.c]+ranks[to.r];
+    if (promoType) lan += promoType.toLowerCase();
+    this.lanHistory.push(lan);
     return isCapture; // UI can use this
   }
 
@@ -383,9 +390,44 @@ class GameState {
 // ==========================================
 // 4. AI ENGINE (MINIMAX + ALPHA BETA)
 // ==========================================
+const OPENING_BOOK = {
+  '': ['e2e4', 'd2d4', 'g1f3', 'c2c4'],
+  'e2e4': ['c7c5', 'e7e5', 'e7e6', 'c7c6'],
+  'd2d4': ['d7d5', 'g8f6'],
+  'g1f3': ['d7d5', 'g8f6'],
+  'c2c4': ['e7e5', 'c7c5', 'g8f6'],
+  'e2e4,e7e5': ['g1f3', 'f1c4', 'b1c3'],
+  'e2e4,c7c5': ['g1f3', 'b1c3'],
+  'e2e4,e7e6': ['d2d4', 'g1f3'],
+  'e2e4,c7c6': ['d2d4', 'b1c3'],
+  'd2d4,d7d5': ['c2c4', 'g1f3', 'c1f4'],
+  'd2d4,g8f6': ['c2c4', 'g1f3'],
+  'e2e4,e7e5,g1f3': ['b8c6', 'g8f6'],
+  'e2e4,c7c5,g1f3': ['d7d6', 'e7e6', 'b8c6'],
+  'd2d4,d7d5,c2c4': ['e7e6', 'c7c6', 'd5c4'],
+  'd2d4,g8f6,c2c4': ['e7e6', 'g7g6'],
+  'e2e4,e7e5,g1f3,b8c6': ['f1b5', 'f1c4', 'd2d4'],
+  'e2e4,c7c5,g1f3,d7d6': ['d2d4', 'f1b5']
+};
+
 const aiEngine = {
+  getBestBookMove(gameRef) {
+    const key = gameRef.lanHistory.join(',');
+    const responses = OPENING_BOOK[key];
+    if (responses && responses.length > 0) {
+      const rStr = responses[Math.floor(Math.random() * responses.length)];
+      const f = 'abcdefgh'; const r = '87654321';
+      return { from: {c: f.indexOf(rStr[0]), r: r.indexOf(rStr[1])}, to: {c: f.indexOf(rStr[2]), r: r.indexOf(rStr[3])} };
+    }
+    return null;
+  },
+
   getBestMove(gameRef, depthLevel) {
-    const depths = { 1: 1, 2: 2, 3: 3 };
+    if (depthLevel >= 2) {
+      const bookMove = this.getBestBookMove(gameRef);
+      if (bookMove) return bookMove;
+    }
+    const depths = { 1: 1, 2: 2, 3: 4 };
     const maxDepth = depths[depthLevel] || 2;
     // Clone core cleanly for search
     let clone = new GameState();
@@ -518,10 +560,14 @@ const elWhiteAdv = document.getElementById('white-adv');
 const elBlackAdv = document.getElementById('black-adv');
 
 const settings = { coords: true, hints: true, sound: false, theme: 'classic' };
+const userStats = { elo: 1200 };
+let biggestBlunder = null;
 
 function loadLocal() {
   const s = localStorage.getItem('chess-settings-v2');
   if (s) Object.assign(settings, JSON.parse(s));
+  const eloStr = localStorage.getItem('chess-elo-v2');
+  if (eloStr) userStats.elo = parseInt(eloStr);
   document.getElementById('setting-coords').checked = settings.coords;
   document.getElementById('setting-hints').checked = settings.hints;
   document.getElementById('setting-sound').checked = settings.sound;
@@ -555,7 +601,33 @@ function playAudio(type) {
   } catch(e){}
 }
 
+function analyzeMoveAsync(state, humanMove) {
+  const bestMove = aiEngine.getBestMove(state, 2);
+  if (!bestMove || (bestMove.from.r === humanMove.from.r && bestMove.from.c === humanMove.from.c && bestMove.to.r === humanMove.to.r && bestMove.to.c === humanMove.to.c)) return;
+  state.stateStack.push(state.clone());
+  state.makeMove(bestMove.from, bestMove.to, bestMove.promo || null);
+  const bestNotation = state.history[state.history.length - 1];
+  let bestEval = aiEngine.minimax(state, 1, -Infinity, Infinity, state.turn === 'w');
+  state.undo();
+  state.stateStack.push(state.clone());
+  state.makeMove(humanMove.from, humanMove.to, humanMove.promo || null);
+  const humanNotation = state.history[state.history.length - 1];
+  let humanEval = aiEngine.minimax(state, 1, -Infinity, Infinity, state.turn === 'w');
+  state.undo();
+  let diff = state.turn === 'w' ? (bestEval - humanEval) : (humanEval - bestEval);
+  if (diff > 45) { // Roughly 1.5 minor pieces drop
+    if (!biggestBlunder || diff > biggestBlunder.diff) {
+      biggestBlunder = { diff, humanNotation, bestNotation };
+    }
+  }
+}
+
 function processMoveUI(from, to, promo = null) {
+  if (gameMode !== 'pvp' && ((gameMode === 'pvc-w' && game.turn === 'w') || (gameMode === 'pvc-b' && game.turn === 'b'))) {
+    const stateBeforeMove = new GameState(); stateBeforeMove.restore(game.clone());
+    const humanMove = { from: {r: from.r, c: from.c}, to: {r: to.r, c: to.c}, promo };
+    setTimeout(() => { analyzeMoveAsync(stateBeforeMove, humanMove); }, 0);
+  }
   const isCap = game.board[to.r][to.c] !== '' || to.isEP;
   lastMoveHint = { from, to };
   game.makeMove(from, to, promo);
@@ -646,6 +718,36 @@ function render() {
     elGameState.innerText = game.result;
     elGameState.style.color = 'var(--danger)';
     elGameState.style.fontWeight = 'bold';
+    
+    // Compute ELO
+    let eloChange = 0;
+    if (gameMode !== 'pvp') {
+      const isUserWhite = gameMode === 'pvc-w';
+      const aiElo = aiDifficulty === 1 ? 800 : (aiDifficulty === 2 ? 1200 : 1600);
+      let userScore = 0.5;
+      if (game.result.includes('White Wins')) userScore = isUserWhite ? 1 : 0;
+      else if (game.result.includes('Black Wins')) userScore = isUserWhite ? 0 : 1;
+      const expected = 1 / (1 + Math.pow(10, (aiElo - userStats.elo) / 400));
+      eloChange = Math.round(32 * (userScore - expected));
+      userStats.elo += eloChange;
+      localStorage.setItem('chess-elo-v2', userStats.elo);
+    }
+    
+    const eloEl = document.getElementById('game-over-elo');
+    if (eloEl) {
+      eloEl.innerText = gameMode !== 'pvp' ? userStats.elo : '-';
+      document.getElementById('game-over-elo-change').innerText = gameMode !== 'pvp' ? ((eloChange >= 0 ? '+' : '') + eloChange) : 'N/A';
+      document.getElementById('game-over-elo-change').style.color = eloChange > 0 ? 'var(--selected)' : (eloChange < 0 ? 'var(--danger)' : 'var(--text-muted)');
+      
+      if (gameMode !== 'pvp' && biggestBlunder) {
+        document.getElementById('mistake-analysis').style.display = 'block';
+        document.getElementById('analysis-mistake-text').innerText = "Mistake: " + biggestBlunder.humanNotation;
+        document.getElementById('analysis-best-alt').innerText = "Best: " + biggestBlunder.bestNotation;
+      } else {
+        document.getElementById('mistake-analysis').style.display = 'none';
+      }
+    }
+
     document.getElementById('game-over-title').innerText = game.result.includes('Win') ? "Checkmate!" : "Draw!";
     document.getElementById('game-over-message').innerText = game.result;
     document.getElementById('game-over-modal').classList.remove('hidden');
@@ -746,6 +848,7 @@ document.getElementById('btn-start-game').onclick = () => {
   gameMode = document.querySelector('input[name="game-mode"]:checked').value;
   aiDifficulty = parseInt(document.querySelector('input[name="ai-difficulty"]:checked').value);
   game.reset();
+  biggestBlunder = null;
   lastMoveHint = null;
   selectedSquare = null;
   currentLegalMoves = [];

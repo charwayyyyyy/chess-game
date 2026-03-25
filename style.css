@@ -234,13 +234,13 @@ h1, h2, h3, .subtitle, .turn-indicator {
 /* Coordinates */
 .coord {
   position: absolute;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.65rem;
+  font-weight: 700;
   opacity: 0.8;
   font-family: var(--font-ui);
 }
-.coord.rank { top: 3px; left: 5px; }
-.coord.file { bottom: 1px; right: 4px; }
+.coord.rank { top: 2px; left: 3px; }
+.coord.file { bottom: 0px; right: 3px; }
 .square.light .coord { color: var(--board-dark); }
 .square.dark .coord { color: var(--board-light); }
 
