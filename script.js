@@ -11,7 +11,7 @@ const PIECES = {
   p: 'p', n: 'n', b: 'b', r: 'r', q: 'q', k: 'k'
 };
 const UNICODE_PIECES = {
-  P: '♙', N: '♘', B: '♗', R: '♖', Q: '♕', K: '♔',
+  P: '♟', N: '♞', B: '♝', R: '♜', Q: '♛', K: '♚',
   p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚'
 };
 const VALS = { P: 10, N: 30, B: 31, R: 50, Q: 90, K: 9000, p: 10, n: 30, b: 31, r: 50, q: 90, k: 9000 };
@@ -682,13 +682,15 @@ function triggerAITurn() {
 }
 
 function render() {
-  document.querySelectorAll('.coord-out').forEach(e => e.remove());
-  if (settings.coords) {
+  const elRanks = document.getElementById('coords-rank');
+  const elFiles = document.getElementById('coords-file');
+  if (elRanks) elRanks.innerHTML = '';
+  if (elFiles) elFiles.innerHTML = '';
+
+  if (settings.coords && elRanks && elFiles) {
     for (let i=0; i<8; i++) {
-      const rk = document.createElement('div'); rk.className='coord-out rank-out'; rk.innerText='87654321'[i]; rk.style.top = `calc(${i*12.5}% + 6.25%)`;
-      const fl = document.createElement('div'); fl.className='coord-out file-out'; fl.innerText='abcdefgh'[i]; fl.style.left = `calc(${i*12.5}% + 6.25%)`;
-      elBoard.parentElement.appendChild(rk);
-      elBoard.parentElement.appendChild(fl);
+      const rk = document.createElement('span'); rk.innerText = '87654321'[i]; elRanks.appendChild(rk);
+      const fl = document.createElement('span'); fl.innerText = 'abcdefgh'[i]; elFiles.appendChild(fl);
     }
   }
 

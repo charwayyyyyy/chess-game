@@ -186,12 +186,45 @@ h1, h2, h3, .subtitle, .turn-indicator {
 .board-wrapper {
   position: relative;
   background: var(--panel-bg);
-  padding: 1.25rem 1rem 1rem 1.25rem;
+  padding: 1.25rem;
   border-radius: calc(var(--border-radius) + 8px);
   box-shadow: var(--shadow-md);
   border: 1px solid var(--panel-border);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
+}
+
+.board-layout {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  grid-template-rows: 1fr 20px;
+  gap: 8px;
+  align-items: center;
+}
+
+.coords-rank {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: space-around;
+  align-items: center;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.coords-file {
+  display: flex;
+  width: 100%;
+  justify-content: space-around;
+  align-items: center;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  user-select: none;
 }
 
 .chess-board {
@@ -231,26 +264,12 @@ h1, h2, h3, .subtitle, .turn-indicator {
   pointer-events: none;
 }
 
-/* Extracted Coordinates (Outside the Board) */
-.coord-out {
-  position: absolute;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  font-family: var(--font-ui);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-.rank-out { left: 10px; }
-.file-out { bottom: 0px; }
-
 /* Pieces */
 .piece {
   font-size: calc(3vw + 1.2rem);
   line-height: 1;
   cursor: pointer;
   z-index: 10;
-  color: var(--text-main); /* Unicode naturally differentiates white vs black */
   transition: transform 0.15s ease-out, filter 0.15s ease-out;
   will-change: transform;
 }
@@ -260,14 +279,18 @@ h1, h2, h3, .subtitle, .turn-indicator {
 
 .piece:hover {
   transform: scale(1.12);
-  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+  filter: drop-shadow(0 6px 8px rgba(0,0,0,0.4));
 }
 
 .white-piece {
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.35));
+  color: #ffffff;
+  -webkit-text-stroke: 1.5px #1a1a1a;
+  filter: drop-shadow(0 3px 3px rgba(0,0,0,0.4));
 }
 .black-piece {
-  filter: drop-shadow(0 1px 1.5px rgba(255,255,255,0.4));
+  color: #1a1a1a;
+  -webkit-text-stroke: 1.5px #0a0a0a;
+  filter: drop-shadow(0 2px 2px rgba(255,255,255,0.15)) drop-shadow(0 4px 4px rgba(0,0,0,0.5));
 }
 
 /* Hint Indicators */
