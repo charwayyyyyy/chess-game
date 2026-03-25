@@ -2,6 +2,7 @@
  * PREMIUM CHESS ENGINE
  * Modularized architecture: Constants, MoveGenerator, RulesEngine, GameState, AIEngine, UIController
  */
+const IS_WORKER = typeof window === 'undefined';
 
 // ==========================================
 // 1. CONSTANTS & UTILS
@@ -180,15 +181,20 @@ const rulesEngine = {
     const legals = [];
 
     for (let m of pseudos) {
-      const bClone = board.map(row => [...row]);
-      bClone[m.r][m.c] = bClone[r][c];
-      bClone[r][c] = '';
-      if (m.isEP) bClone[r][m.c] = '';
-      if (m.isCastle) {
-        if (m.c === 6) { bClone[m.r][5] = bClone[m.r][7]; bClone[m.r][7] = ''; }
-        else { bClone[m.r][3] = bClone[m.r][0]; bClone[m.r][0] = ''; }
-      }
-      if (!this.isCheck(turn, bClone)) legals.push(m);
+      if (m.isCastle) { legals.push(m); continue; }
+      const pTo = board[m.r][m.c];
+      let pEp = null;
+      board[m.r][m.c] = board[r][c];
+      board[r][c] = '';
+      if (m.isEP) { pEp = board[r][m.c]; board[r][m.c] = ''; }
+      
+      const inCheck = this.isCheck(turn, board);
+      
+      board[r][c] = board[m.r][m.c];
+      board[m.r][m.c] = pTo;
+      if (m.isEP) { board[r][m.c] = pEp; }
+      
+      if (!inCheck) legals.push(m);
     }
     return legals;
   },
@@ -233,6 +239,7 @@ class GameState {
     this.fullMoves = 1;
     this.history = []; // String notation
     this.lanHistory = []; // LAN Strings for opening book
+    this.moveAnalysis = []; // Stores background evaluation objects per move
     this.captured = { w: [], b: [] };
     this.stateStack = []; // Deep copies for Undo
     this.isGameOver = false;
@@ -251,6 +258,7 @@ class GameState {
       captured: { w: [...this.captured.w], b: [...this.captured.b] },
       history: [...this.history],
       lanHistory: [...this.lanHistory],
+      moveAnalysis: [...this.moveAnalysis],
       isGameOver: this.isGameOver,
       result: this.result,
       resultProcessed: this.resultProcessed
@@ -267,6 +275,7 @@ class GameState {
     this.captured = { w: [...state.captured.w], b: [...state.captured.b] };
     this.history = [...state.history];
     this.lanHistory = [...state.lanHistory];
+    this.moveAnalysis = state.moveAnalysis ? [...state.moveAnalysis] : [];
     this.isGameOver = state.isGameOver;
     this.result = state.result;
     this.resultProcessed = state.resultProcessed;
@@ -368,6 +377,9 @@ class GameState {
       let lan = files[from.c]+ranks[from.r]+files[to.c]+ranks[to.r];
       if (promoType) lan += promoType.toLowerCase();
       this.lanHistory.push(lan);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('chess-save-game', JSON.stringify(this.clone()));
+      }
     }
     return isCapture; // UI can use this
   }
@@ -413,6 +425,19 @@ const OPENING_BOOK = {
   'd2d4,g8f6,c2c4': ['e7e6', 'g7g6'],
   'e2e4,e7e5,g1f3,b8c6': ['f1b5', 'f1c4', 'd2d4'],
   'e2e4,c7c5,g1f3,d7d6': ['d2d4', 'f1b5']
+};
+
+const OPENING_NAMES = {
+  'e2e4': "King's Pawn Game",
+  'd2d4': "Queen's Pawn Game",
+  'e2e4,c7c5': "Sicilian Defense",
+  'e2e4,e7e5': "Open Game",
+  'e2e4,e7e6': "French Defense",
+  'e2e4,c7c6': "Caro-Kann Defense",
+  'd2d4,d7d5': "Closed Game",
+  'd2d4,g8f6': "Indian Defense",
+  'e2e4,e7e5,g1f3,b8c6,f1b5': "Ruy Lopez",
+  'e2e4,e7e5,g1f3,b8c6,f1c4': "Italian Game"
 };
 
 const aiEngine = {
@@ -550,8 +575,49 @@ const aiEngine = {
 
 
 // ==========================================
-// 5. UI CONTROLLER & GAME LOOP
+// 5. UI CONTROLLER & GAME LOOP & WORKER
 // ==========================================
+if (IS_WORKER) {
+  self.onmessage = function(e) {
+    const { action, stateData, depth, humanMove, isHint } = e.data;
+    if (action === 'getBestMove') {
+      let g = new GameState(); g.restore(stateData);
+      const bestMove = aiEngine.getBestMove(g, depth);
+      let hintReason = "";
+      if (bestMove) {
+        if (bestMove.promo) hintReason = "Promotes to a Queen.";
+        else if (g.board[bestMove.to.r][bestMove.to.c] !== '') hintReason = "Wins material.";
+        else if (rulesEngine.isCheck(oppColor(g.turn), g.board)) hintReason = "Delivers check.";
+        else hintReason = "Improves position.";
+      }
+      self.postMessage({ action: 'bestMoveRes', bestMove, hintReason, isHint });
+    } else if (action === 'analyzeMove') {
+      let g = new GameState(); g.restore(stateData);
+      const bestMove = aiEngine.getBestMove(g, 2);
+      if (!bestMove || (bestMove.from.r === humanMove.from.r && bestMove.from.c === humanMove.from.c && bestMove.to.r === humanMove.to.r && bestMove.to.c === humanMove.to.c)) {
+        self.postMessage({ action: 'analyzeRes', diff: 0 }); return;
+      }
+      g.makeMove(bestMove.from, bestMove.to, bestMove.promo || null, false);
+      const bestNotation = g.history[g.history.length - 1];
+      let bestEval = aiEngine.minimax(g, 1, -Infinity, Infinity, g.turn === 'w');
+      g.undo();
+      g.makeMove(humanMove.from, humanMove.to, humanMove.promo || null, false);
+      const humanNotation = g.history[g.history.length - 1];
+      let humanEval = aiEngine.minimax(g, 1, -Infinity, Infinity, g.turn === 'w');
+      g.undo();
+      let diff = g.turn === 'w' ? (bestEval - humanEval) : (humanEval - bestEval);
+      
+      let classification = 'Best';
+      if (diff > 150) classification = 'Blunder';
+      else if (diff > 65) classification = 'Mistake';
+      else if (diff > 35) classification = 'Inaccuracy';
+      else if (diff > 15) classification = 'Good';
+
+      self.postMessage({ action: 'analyzeRes', diff, humanNotation, bestNotation, classification, index: stateData.history.length - 1 });
+    }
+  };
+} else {
+
 let game = new GameState();
 let selectedSquare = null;
 let currentLegalMoves = [];
@@ -596,6 +662,7 @@ function saveLocal() {
   settings.coords = document.getElementById('setting-coords').checked;
   settings.hints = document.getElementById('setting-hints').checked;
   settings.sound = document.getElementById('setting-sound').checked;
+  settings.arrows = document.getElementById('setting-arrows').checked !== false; // default true 
   settings.theme = document.getElementById('setting-theme').value;
   localStorage.setItem('chess-settings-v2', JSON.stringify(settings));
   document.documentElement.setAttribute('data-theme', settings.theme);
@@ -619,34 +686,44 @@ function playAudio(type) {
   } catch(e){}
 }
 
-function analyzeMoveAsync(state, humanMove) {
-  const bestMove = aiEngine.getBestMove(state, 2);
-  if (!bestMove || (bestMove.from.r === humanMove.from.r && bestMove.from.c === humanMove.from.c && bestMove.to.r === humanMove.to.r && bestMove.to.c === humanMove.to.c)) return;
-  
-  // Make best move correctly without duplicate stacking
-  state.makeMove(bestMove.from, bestMove.to, bestMove.promo || null, false);
-  const bestNotation = state.history[state.history.length - 1];
-  let bestEval = aiEngine.minimax(state, 1, -Infinity, Infinity, state.turn === 'w');
-  state.undo();
-  
-  state.makeMove(humanMove.from, humanMove.to, humanMove.promo || null, false);
-  const humanNotation = state.history[state.history.length - 1];
-  let humanEval = aiEngine.minimax(state, 1, -Infinity, Infinity, state.turn === 'w');
-  state.undo();
-  
-  let diff = state.turn === 'w' ? (bestEval - humanEval) : (humanEval - bestEval);
-  if (diff > 45) { // Roughly 1.5 minor pieces drop
-    if (!biggestBlunder || diff > biggestBlunder.diff) {
-      biggestBlunder = { diff, humanNotation, bestNotation };
+let analysisWorker = new Worker('script.js');
+analysisWorker.onmessage = function(e) {
+  if (e.data.action === 'bestMoveRes') {
+    document.getElementById('ai-thinking-overlay').classList.add('hidden');
+    isBoardLocked = false;
+    const move = e.data.bestMove;
+    if (e.data.isHint) {
+       if (move) {
+         selectedSquare = move.from; currentLegalMoves = [move]; 
+         document.getElementById('game-state').innerText = `Hint: ${e.data.hintReason}`;
+         render();
+       }
+    } else if (move) {
+      const p = game.board[move.from.r][move.from.c];
+      const isPromo = p.toLowerCase() === 'p' && (move.to.r === 0 || move.to.r === 7);
+      processMoveUI(move.from, move.to, isPromo ? 'Q' : null);
     }
+  } else if (e.data.action === 'analyzeRes') {
+    const { diff, humanNotation, bestNotation, classification, index } = e.data;
+    
+    // Store in global history analysis
+    game.moveAnalysis[index] = { classification, diff, bestNotation };
+
+    if (diff > 45) { // Roughly 1.5 minor pieces drop
+      if (!biggestBlunder || diff > biggestBlunder.diff) {
+        biggestBlunder = { diff, humanNotation, bestNotation };
+      }
+    }
+    
+    // Rerender history list immediately to show visual badge
+    if (!isReviewMode) renderHistoryList();
   }
-}
+};
 
 function processMoveUI(from, to, promo = null) {
   if (gameMode !== 'pvp' && ((gameMode === 'pvc-w' && game.turn === 'w') || (gameMode === 'pvc-b' && game.turn === 'b'))) {
-    const stateBeforeMove = new GameState(); stateBeforeMove.restore(game.clone());
     const humanMove = { from: {r: from.r, c: from.c}, to: {r: to.r, c: to.c}, promo };
-    setTimeout(() => { analyzeMoveAsync(stateBeforeMove, humanMove); }, 0);
+    analysisWorker.postMessage({ action: 'analyzeMove', stateData: game.clone(), humanMove });
   }
   const isCap = game.board[to.r][to.c] !== '' || to.isEP;
   lastMoveHint = { from, to };
@@ -670,19 +747,7 @@ function processMoveUI(from, to, promo = null) {
 function triggerAITurn() {
   isBoardLocked = true;
   document.getElementById('ai-thinking-overlay').classList.remove('hidden');
-  
-  // Async defer so UI paints
-  setTimeout(() => {
-    const move = aiEngine.getBestMove(game, aiDifficulty);
-    document.getElementById('ai-thinking-overlay').classList.add('hidden');
-    isBoardLocked = false;
-    
-    if (move) {
-      const p = game.board[move.from.r][move.from.c];
-      const isPromo = p.toLowerCase() === 'p' && (move.to.r === 0 || move.to.r === 7);
-      processMoveUI(move.from, move.to, isPromo ? 'Q' : null);
-    }
-  }, 150); // Minimum delay for human reaction realism
+  analysisWorker.postMessage({ action: 'getBestMove', stateData: game.clone(), depth: aiDifficulty });
 }
 
 function render() {
@@ -699,10 +764,24 @@ function render() {
   }
 
   elBoard.innerHTML = '';
-  const inCheckC = rulesEngine.isCheck(game.turn, game.board) ? game.turn : null;
+  
+  // Opening logic
+  let lk = game.lanHistory.join(',');
+  const keys = Object.keys(OPENING_NAMES).sort((a,b)=>b.length-a.length);
+  const match = keys.find(k => lk.startsWith(k));
+  document.getElementById('opening-name').innerText = match ? OPENING_NAMES[match] : '';
 
-  for (let r=0; r<8; r++) {
-    for (let c=0; c<8; c++) {
+  const inCheckC = rulesEngine.isCheck(game.turn, game.board) ? game.turn : null;
+  const isFlipped = document.getElementById('chess-board').classList.contains('flipped');
+
+  // SVG Arrows 
+  let arrowsHTML = '';
+
+  for (let rank=0; rank<8; rank++) {
+    for (let col=0; col<8; col++) {
+      let r = isFlipped ? 7 - rank : rank;
+      let c = isFlipped ? 7 - col : col;
+
       const sq = document.createElement('div');
       sq.className = `square ${(r+c)%2===0 ? 'light' : 'dark'}`;
       const p = game.board[r][c];
@@ -722,8 +801,6 @@ function render() {
         }
       }
 
-      // Coords handled outside of .square rendering now via absolute placement.
-
       if (p !== '') {
         const pEl = document.createElement('div');
         pEl.className = `piece ${isWhite(p) ? 'white-piece' : 'black-piece'}`;
@@ -734,6 +811,35 @@ function render() {
       sq.onclick = () => onSquareClick(r, c);
       elBoard.appendChild(sq);
     }
+  }
+
+  // Draw arrow if Reviewing or Hinting
+  if (settings.arrows !== false) {
+    let arrowMove = null;
+    if (isReviewMode && reviewCurrentMoveIndex >= 0) {
+       const ana = game.moveAnalysis[reviewCurrentMoveIndex];
+       if (ana && ana.classification !== 'Best' && ana.classification !== 'Good') {
+          // Can parse best LAN from bestNotation if we built an engine mapping, but for simplicity skip for now or rely on hint arrows
+       }
+    } else if (lastMoveHint && (isReviewMode || gameMode!=='pvp')) {
+        // Draw last move
+        arrowMove = lastMoveHint;
+    }
+
+    if (arrowMove) {
+       const dr = isFlipped ? 7 - arrowMove.to.r : arrowMove.to.r;
+       const dc = isFlipped ? 7 - arrowMove.to.c : arrowMove.to.c;
+       const fr = isFlipped ? 7 - arrowMove.from.r : arrowMove.from.r;
+       const fc = isFlipped ? 7 - arrowMove.from.c : arrowMove.from.c;
+       
+       const x1 = (fc * 12.5) + 6.25; const y1 = (fr * 12.5) + 6.25;
+       const x2 = (dc * 12.5) + 6.25; const y2 = (dr * 12.5) + 6.25;
+       arrowsHTML = `<svg id="arrows-layer"><defs><marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><polygon points="0 0, 6 3, 0 6" fill="rgba(245, 158, 11, 0.7)"/></marker></defs><line x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%" stroke="rgba(245, 158, 11, 0.7)" stroke-width="3%" marker-end="url(#arrowhead)"/></svg>`;
+    }
+  }
+  
+  if (arrowsHTML) {
+    elBoard.insertAdjacentHTML('beforeend', arrowsHTML);
   }
 
   // UI Panels
@@ -801,15 +907,45 @@ function render() {
   else if (s.diff < 0) { elBlackAdv.innerText = `+${-s.diff}`; elBlackAdv.classList.remove('hidden'); elWhiteAdv.classList.add('hidden'); }
   else { elWhiteAdv.classList.add('hidden'); elBlackAdv.classList.add('hidden'); }
 
-  // History
+  renderHistoryList();
+}
+
+function renderHistoryList() {
   elHistList.innerHTML = '';
   for (let i=0; i<game.history.length; i+=2) {
     const liTurn = document.createElement('li'); liTurn.className = 'turn-num'; liTurn.innerText = (i/2 + 1) + '.';
-    const liW = document.createElement('li'); liW.className = 'move-cell'; liW.innerText = game.history[i];
-    if (i === game.history.length-1) liW.classList.add('latest');
     
-    const liB = document.createElement('li'); liB.className = 'move-cell'; liB.innerText = game.history[i+1] || '';
-    if (i+1 === game.history.length-1) liB.classList.add('latest');
+    // White Move
+    const liW = document.createElement('li'); 
+    liW.className = 'move-cell'; 
+    liW.innerText = game.history[i];
+    liW.onclick = () => jumpToMove(i);
+    const anaW = game.moveAnalysis[i];
+    if (anaW && anaW.classification !== 'Best') {
+      if (anaW.classification === 'Good') liW.classList.add('eval-good');
+      else if (anaW.classification === 'Inaccuracy') liW.classList.add('eval-inacc');
+      else if (anaW.classification === 'Mistake') liW.classList.add('eval-mistake');
+      else if (anaW.classification === 'Blunder') liW.classList.add('eval-blunder');
+    }
+    if (i === game.history.length-1 && !isReviewMode) liW.classList.add('latest');
+    if (isReviewMode && reviewCurrentMoveIndex === i) liW.classList.add('latest');
+    
+    // Black Move
+    const liB = document.createElement('li'); 
+    liB.className = 'move-cell'; 
+    liB.innerText = game.history[i+1] || '';
+    if (game.history[i+1]) {
+      liB.onclick = () => jumpToMove(i+1);
+      const anaB = game.moveAnalysis[i+1];
+      if (anaB && anaB.classification !== 'Best') {
+        if (anaB.classification === 'Good') liB.classList.add('eval-good');
+        else if (anaB.classification === 'Inaccuracy') liB.classList.add('eval-inacc');
+        else if (anaB.classification === 'Mistake') liB.classList.add('eval-mistake');
+        else if (anaB.classification === 'Blunder') liB.classList.add('eval-blunder');
+      }
+      if (i+1 === game.history.length-1 && !isReviewMode) liB.classList.add('latest');
+      if (isReviewMode && reviewCurrentMoveIndex === i+1) liB.classList.add('latest');
+    }
 
     elHistList.appendChild(liTurn); elHistList.appendChild(liW); elHistList.appendChild(liB);
   }
@@ -883,23 +1019,51 @@ function startReviewMode() {
   renderReviewMove();
 }
 
+function jumpToMove(i) {
+  if (!isReviewMode) {
+    isReviewMode = true;
+    reviewStates = [...game.stateStack, game.clone()];
+    document.getElementById('controls-panel').classList.add('hidden');
+    document.getElementById('review-controls').classList.remove('hidden');
+  }
+  reviewCurrentMoveIndex = i + 1; // move 0 corresponds to state 1
+  if (reviewCurrentMoveIndex >= reviewStates.length) reviewCurrentMoveIndex = reviewStates.length - 1;
+  renderReviewMove();
+}
+
 function renderReviewMove() {
   game.restore(reviewStates[reviewCurrentMoveIndex]);
   let analysisText = `Reviewing Move ${reviewCurrentMoveIndex}`;
-  if (reviewCurrentMoveIndex > 0 && biggestBlunder) {
-    if (biggestBlunder.humanNotation === game.history[reviewCurrentMoveIndex - 1]) {
-       analysisText = `Mistake! Best alternative was ${biggestBlunder.bestNotation}`;
+  let altText = "";
+  
+  if (reviewCurrentMoveIndex > 0) {
+    const ana = game.moveAnalysis[reviewCurrentMoveIndex - 1];
+    if (ana) {
+      if (ana.classification === 'Mistake' || ana.classification === 'Blunder') {
+        analysisText = `${ana.classification} (${ana.diff > 0 ? '+' : ''}${parseFloat(ana.diff/10).toFixed(1)})`;
+        altText = `Best alternative was ${ana.bestNotation}`;
+      } else {
+        analysisText = `${ana.classification} (${ana.diff > 0 ? '+' : ''}${parseFloat(ana.diff/10).toFixed(1)})`;
+      }
+    } else if (biggestBlunder && biggestBlunder.humanNotation === game.history[reviewCurrentMoveIndex - 1]) {
+       analysisText = `Mistake!`;
+       altText = `Best alternative was ${biggestBlunder.bestNotation}`;
     }
   }
   if (reviewCurrentMoveIndex === reviewStates.length - 1) {
     analysisText = "Final Board State";
   }
   document.getElementById('review-analysis').innerText = analysisText;
+  document.getElementById('review-best-alt').innerText = altText;
   
   isReviewMode = true;
   render();
 }
 
+document.getElementById('btn-review-start').onclick = () => {
+  reviewCurrentMoveIndex = 0;
+  renderReviewMove();
+};
 document.getElementById('btn-review-prev').onclick = () => {
   if (reviewCurrentMoveIndex > 0) {
     reviewCurrentMoveIndex--;
@@ -911,6 +1075,10 @@ document.getElementById('btn-review-next').onclick = () => {
     reviewCurrentMoveIndex++;
     renderReviewMove();
   }
+};
+document.getElementById('btn-review-end').onclick = () => {
+  reviewCurrentMoveIndex = reviewStates.length - 1;
+  renderReviewMove();
 };
 document.getElementById('btn-exit-review').onclick = () => {
   isReviewMode = false;
@@ -982,12 +1150,48 @@ document.getElementById('btn-undo').onclick = () => {
 
 document.getElementById('btn-hint').onclick = () => {
   if (game.isGameOver || isBoardLocked) return;
-  const best = aiEngine.getBestMove(game, 2); // Depth 2 for fast hint
-  if (best) {
-    selectedSquare = best.from;
-    currentLegalMoves = [best.to];
-    render();
+  document.getElementById('ai-thinking-overlay').classList.remove('hidden');
+  isBoardLocked = true;
+  analysisWorker.postMessage({ action: 'getBestMove', stateData: game.clone(), depth: 2, isHint: true });
+};
+
+document.getElementById('btn-flip-board').onclick = () => {
+  document.getElementById('chess-board').classList.toggle('flipped');
+  render();
+};
+
+document.getElementById('btn-export-pgn').onclick = () => {
+  let pgn = '';
+  for(let i=0; i<game.history.length; i+=2) {
+    pgn += (i/2+1)+'. '+game.history[i]+' '+(game.history[i+1]?game.history[i+1]+' ':'');
   }
+  prompt("Copy your PGN:", pgn.trim());
+};
+
+document.getElementById('btn-import-pgn').onclick = () => {
+  const pgn = prompt("Paste PGN string:");
+  if(!pgn) return;
+  const moves = pgn.replace(/\d+\./g, '').trim().split(/\s+/);
+  game.reset();
+  gameMode = 'pvp';
+  for (let mNotation of moves) {
+    const legs = rulesEngine.getAllLegalMoves(game.board, game.turn, game.castling, game.epSquare);
+    let found = null;
+    for (let m of legs) {
+      const p = game.board[m.from.r][m.from.c];
+      const isPromo = p.toLowerCase() === 'p' && (m.to.r===0||m.to.r===7);
+      const isEP = m.to.isEP||false;
+      const isCap = game.board[m.to.r][m.to.c]!=='' || isEP;
+      const note = game.getNotation(m.from, m.to, p, isCap, m.isCastle, isEP, isPromo?'Q':null);
+      if (note.replace('+','').replace('#','') === mNotation.replace('+','').replace('#','')) {
+         found = { m, isPromo }; break;
+      }
+    }
+    if (found) game.makeMove(found.m.from, found.m.to, found.isPromo?'Q':null);
+    else break;
+  }
+  biggestBlunder = null; lastMoveHint = null; selectedSquare = null; currentLegalMoves = [];
+  render();
 };
 
 document.getElementById('btn-settings').onclick = () => document.getElementById('settings-modal').classList.remove('hidden');
@@ -998,4 +1202,28 @@ document.getElementById('setting-theme').onchange = saveLocal;
 
 // Init
 loadLocal();
+
+const savedStr = localStorage.getItem('chess-save-game');
+if (savedStr) {
+  try {
+    const s = JSON.parse(savedStr);
+    if (!s.isGameOver) {
+      game.restore(s);
+    }
+  } catch(e) {}
+}
+
 render();
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'u' || e.key === 'U') document.getElementById('btn-undo').click();
+  if (e.key === 'h' || e.key === 'H') document.getElementById('btn-hint').click();
+  if (e.key === 'n' || e.key === 'N') document.getElementById('btn-new-game').click();
+  if (e.key === 'f' || e.key === 'F') document.getElementById('btn-flip-board').click();
+  if (isReviewMode) {
+    if (e.key === 'ArrowLeft') document.getElementById('btn-review-prev').click();
+    if (e.key === 'ArrowRight') document.getElementById('btn-review-next').click();
+  }
+});
+
+} // CLOSE WORKER UI FORK
