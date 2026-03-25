@@ -1,0 +1,27 @@
+{
+  "name": "chess-game",
+  "version": "1.0.0",
+  "description": "A fully functional, client-side browser chess application built with HTML, CSS, and vanilla JavaScript.",
+  "main": "script.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/charwayyyyyy/chess-game.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/charwayyyyyy/chess-game/issues"
+  },
+  "homepage": "https://github.com/charwayyyyyy/chess-game#readme",
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3"
+  }
+}

@@ -26,6 +26,7 @@
           </div>
           <div class="game-state" id="game-state"></div>
           <div class="score-display" id="score-display">Even</div>
+          <div class="network-status" id="network-status" style="display:none; font-size: 0.85rem; padding: 0.25rem 0.5rem; border-radius: 4px; background: var(--bg-card); border: 1px solid var(--border-color);">Connecting...</div>
         </div>
 
         <div class="board-wrapper" id="board-wrapper">
@@ -106,6 +107,7 @@
             <label class="radio-btn"><input type="radio" name="game-mode" value="pvp" checked> Player vs Player</label>
             <label class="radio-btn"><input type="radio" name="game-mode" value="pvc-w"> Play as White (vs AI)</label>
             <label class="radio-btn"><input type="radio" name="game-mode" value="pvc-b"> Play as Black (vs AI)</label>
+            <label class="radio-btn"><input type="radio" name="game-mode" value="multi"> Multiplayer (Online)</label>
           </div>
         </div>
         <div class="setting-group" id="difficulty-group" style="display: none;">
@@ -115,6 +117,17 @@
             <label class="radio-btn"><input type="radio" name="ai-difficulty" value="2" checked> Medium</label>
             <label class="radio-btn"><input type="radio" name="ai-difficulty" value="3"> Hard</label>
           </div>
+        </div>
+        <div class="setting-group" id="multiplayer-group" style="display: none;">
+          <label class="setting-title">Online Multiplayer</label>
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <button class="btn btn-animate" id="btn-create-room">Create New Room</button>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="join-room-id" placeholder="Enter Room ID" style="flex: 1; padding: 0.5rem; background: var(--bg-hover); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 4px;" class="form-input">
+            <button class="btn btn-animate" id="btn-join-room">Join Room</button>
+          </div>
+          <p id="multi-status" style="margin-top: 0.5rem; color: var(--accent); font-size: 0.9rem;"></p>
         </div>
         <div class="modal-actions full-width">
           <button class="btn primary btn-animate" id="btn-start-game">Start Game</button>
@@ -181,6 +194,7 @@
     </div>
   </div>
 
+  <script src="/socket.io/socket.io.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
