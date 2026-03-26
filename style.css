@@ -1,9 +1,9 @@
 :root {
   /* Default classic wood theme */
-  --board-light: #edd6b0;
-  --board-dark: #b88762;
-  --bg-color: #f1f5f9;
-  --panel-bg: rgba(255, 255, 255, 0.85);
+  --board-light: #f0d9b5;
+  --board-dark: #b58863;
+  --bg-color: #f8fafc;
+  --panel-bg: rgba(255, 255, 255, 0.9);
   --panel-border: rgba(0, 0, 0, 0.08);
   --text-main: #1e293b;
   --text-muted: #64748b;
@@ -484,6 +484,12 @@ button.btn.primary:hover {
 .move-cell.eval-inacc { border-left: 3px solid #f59e0b; }
 .move-cell.eval-mistake { border-left: 3px solid #f97316; }
 .move-cell.eval-blunder { border-left: 3px solid #ef4444; color: var(--danger) !important; font-weight: 600; }
+
+.eval-text-best { color: #10b981; }
+.eval-text-good { color: #3b82f6; }
+.eval-text-inacc { color: #f59e0b; }
+.eval-text-mistake { color: #f97316; }
+.eval-text-blunder { color: #ef4444; text-transform: uppercase; font-weight: 700; }
 
 .move-cell:not(:empty):hover {
   background: var(--highlighted);

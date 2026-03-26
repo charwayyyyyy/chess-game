@@ -605,15 +605,26 @@ if (IS_WORKER) {
       const humanNotation = g.history[g.history.length - 1];
       let humanEval = aiEngine.minimax(g, 1, -Infinity, Infinity, g.turn === 'w');
       g.undo();
-      let diff = g.turn === 'w' ? (bestEval - humanEval) : (humanEval - bestEval);
+      
+      let diff = stateData.turn === 'w' ? (bestEval - humanEval) : (humanEval - bestEval);
       
       let classification = 'Best';
-      if (diff > 150) classification = 'Blunder';
-      else if (diff > 65) classification = 'Mistake';
-      else if (diff > 35) classification = 'Inaccuracy';
-      else if (diff > 15) classification = 'Good';
+      let explanation = 'Plays the optimal move.';
+      if (diff > 150) { classification = 'Blunder'; explanation = 'A severe mistake that usually loses material or the game.'; }
+      else if (diff > 65) { classification = 'Mistake'; explanation = 'Significantly worsens your position.'; }
+      else if (diff > 35) { classification = 'Inaccuracy'; explanation = 'Misses a much better tactical or positional opportunity.'; }
+      else if (diff > 15) { classification = 'Good'; explanation = 'A solid, safe development move.'; }
+      else if (diff <= 5) { classification = 'Excellent'; explanation = 'Plays one of the best available lines.'; }
 
-      self.postMessage({ action: 'analyzeRes', diff, humanNotation, bestNotation, classification, index: stateData.history.length - 1 });
+      // Generate the evaluation string like "+2.3"
+      let evalNum = (humanEval / 10).toFixed(1);
+      if (humanEval > 90000) evalNum = "M" + (100000 - humanEval);
+      if (humanEval < -90000) evalNum = "-M" + (100000 + humanEval);
+      let evalStr = humanEval > 0 && !String(evalNum).includes('M') ? `+${evalNum}` : evalNum;
+      
+      if (diff <= 15) bestNotation = null; // Don't show alternative if play was excellent
+
+      self.postMessage({ action: 'analyzeRes', diff, humanNotation, bestNotation, classification, explanation, evalStr, index: stateData.history.length });
     }
   };
 } else {
@@ -704,10 +715,10 @@ analysisWorker.onmessage = function(e) {
       processMoveUI(move.from, move.to, isPromo ? 'Q' : null);
     }
   } else if (e.data.action === 'analyzeRes') {
-    const { diff, humanNotation, bestNotation, classification, index } = e.data;
+    const { diff, humanNotation, bestNotation, classification, explanation, evalStr, index } = e.data;
     
     // Store in global history analysis
-    game.moveAnalysis[index] = { classification, diff, bestNotation };
+    game.moveAnalysis[index] = { classification, diff, bestNotation, explanation, evalStr };
 
     if (diff > 45) { // Roughly 1.5 minor pieces drop
       if (!biggestBlunder || diff > biggestBlunder.diff) {
@@ -1035,29 +1046,51 @@ function renderReviewMove() {
   game.restore(reviewStates[reviewCurrentMoveIndex]);
   let analysisText = `Reviewing Move ${reviewCurrentMoveIndex}`;
   let altText = "";
+  let evalText = "";
   
   if (reviewCurrentMoveIndex > 0) {
-    const ana = game.moveAnalysis[reviewCurrentMoveIndex - 1];
+    const ana = game.moveAnalysis[reviewCurrentMoveIndex];
     if (ana) {
       if (ana.classification === 'Mistake' || ana.classification === 'Blunder') {
-        analysisText = `${ana.classification} (${ana.diff > 0 ? '+' : ''}${parseFloat(ana.diff/10).toFixed(1)})`;
-        altText = `Best alternative was ${ana.bestNotation}`;
+        analysisText = `${ana.classification} (${ana.diff > 0 ? '+' : ''}${parseFloat(ana.diff/10).toFixed(1)}): ${ana.explanation}`;
+        altText = `Better was ${ana.bestNotation}`;
       } else {
-        analysisText = `${ana.classification} (${ana.diff > 0 ? '+' : ''}${parseFloat(ana.diff/10).toFixed(1)})`;
+        analysisText = `${ana.classification}: ${ana.explanation}`;
+        if (ana.bestNotation) altText = `Slightly better was ${ana.bestNotation}`;
       }
+      evalText = `Eval: ${ana.evalStr || "0.0"}`;
     } else if (biggestBlunder && biggestBlunder.humanNotation === game.history[reviewCurrentMoveIndex - 1]) {
        analysisText = `Mistake!`;
        altText = `Best alternative was ${biggestBlunder.bestNotation}`;
     }
   }
   if (reviewCurrentMoveIndex === reviewStates.length - 1) {
-    analysisText = "Final Board State";
+    analysisText = "Final Board State - Game Over";
   }
+  
   document.getElementById('review-analysis').innerText = analysisText;
+  document.getElementById('review-analysis').className = ''; // reset classes
+  if (analysisText.includes('Blunder')) document.getElementById('review-analysis').classList.add('eval-text-blunder');
+  else if (analysisText.includes('Mistake')) document.getElementById('review-analysis').classList.add('eval-text-mistake');
+  else if (analysisText.includes('Inaccuracy')) document.getElementById('review-analysis').classList.add('eval-text-inacc');
+  else if (analysisText.includes('Excellent') || analysisText.includes('Best')) document.getElementById('review-analysis').classList.add('eval-text-best');
+  
   document.getElementById('review-best-alt').innerText = altText;
   
+  let elEval = document.getElementById('review-eval-badge');
+  if(elEval) elEval.innerText = evalText;
+  
+  // Highlight active move in history panel and auto-scroll
   isReviewMode = true;
-  render();
+  renderHistoryList(); // Ensure badges dynamically adjust focus
+  
+  // Wait a tick for DOM to update, then auto-scroll to the current `.latest`
+  setTimeout(() => {
+    const activeEl = document.querySelector('.move-cell.latest');
+    if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 10);
+
+  render(); // Updates board
 }
 
 document.getElementById('btn-review-start').onclick = () => {
