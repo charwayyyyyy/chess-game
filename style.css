@@ -65,7 +65,13 @@ body {
   min-height: 100vh;
   transition: background 0.4s ease, color 0.4s ease;
   overflow-x: hidden;
+  overscroll-behavior-y: none; /* Block native pull-to-refresh on mobile */
+  -webkit-tap-highlight-color: transparent; /* Remove active link blue flashing */
+  touch-action: manipulation; /* Block arbitrary double-tap zooming */
+  user-select: none;
 }
+
+input, select, button { cursor: pointer; } 
 
 h1, h2, h3, .subtitle, .turn-indicator {
   font-family: var(--font-heading);
@@ -75,7 +81,7 @@ h1, h2, h3, .subtitle, .turn-indicator {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  padding: 1.5rem;
+  padding: max(1.5rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
 }
 
 .app-header {
@@ -678,9 +684,15 @@ button.btn.primary:hover {
 }
 
 @media (max-width: 480px) {
-  .app-container { padding: 0.5rem; }
+  .app-container { 
+    padding: max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
+  }
   .app-header { margin-bottom: 1rem; }
   .panel { padding: 1rem; }
   .piece { font-size: 2.2rem; }
-  .modal { padding: 1.5rem; }
+  .modal { padding: 1.5rem; width: 95%; }
+  
+  /* Make sure history/panels aren't excessively tall on tiny screens */
+  .history-list-wrapper { max-height: 180px; }
+  .board-section { gap: 0.75rem; }
 }
