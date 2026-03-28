@@ -73,13 +73,43 @@ const PST = {
 const rulesEngine = {
   isUnderAttack(r, c, friendlyColor, board) {
     const oppC = oppColor(friendlyColor);
-    for (let i=0; i<8; i++) {
-      for (let j=0; j<8; j++) {
-        const p = board[i][j];
-        if (p && getColor(p) === oppC) {
-          const pm = this.getPseudoMoves(i, j, board, false, null, null);
-          if (pm.some(m => m.r === r && m.c === c)) return true;
+    const pDir = friendlyColor === 'w' ? -1 : 1;
+    if (r+pDir >= 0 && r+pDir < 8) {
+      if (c-1 >= 0 && board[r+pDir][c-1] !== '' && getColor(board[r+pDir][c-1]) === oppC && board[r+pDir][c-1].toLowerCase() === 'p') return true;
+      if (c+1 >= 0 && board[r+pDir][c+1] !== '' && getColor(board[r+pDir][c+1]) === oppC && board[r+pDir][c+1].toLowerCase() === 'p') return true;
+    }
+    const nj = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+    for (let [dr, dc] of nj) {
+      let nr = r + dr, nc = c + dc;
+      if (nr>=0 && nr<8 && nc>=0 && nc<8 && board[nr][nc] !== '' && getColor(board[nr][nc]) === oppC && board[nr][nc].toLowerCase() === 'n') return true;
+    }
+    const kd = [[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]];
+    for (let [dr, dc] of kd) {
+      let nr = r + dr, nc = c + dc;
+      if (nr>=0 && nr<8 && nc>=0 && nc<8 && board[nr][nc] !== '' && getColor(board[nr][nc]) === oppC && board[nr][nc].toLowerCase() === 'k') return true;
+    }
+    const bd = [[-1,-1],[-1,1],[1,-1],[1,1]];
+    for (let [dr, dc] of bd) {
+      let nr = r + dr, nc = c + dc;
+      while (nr>=0 && nr<8 && nc>=0 && nc<8) {
+        let p = board[nr][nc];
+        if (p !== '') {
+          if (getColor(p) === oppC && (p.toLowerCase() === 'b' || p.toLowerCase() === 'q')) return true;
+          break;
         }
+        nr += dr; nc += dc;
+      }
+    }
+    const rd = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (let [dr, dc] of rd) {
+      let nr = r + dr, nc = c + dc;
+      while (nr>=0 && nr<8 && nc>=0 && nc<8) {
+        let p = board[nr][nc];
+        if (p !== '') {
+          if (getColor(p) === oppC && (p.toLowerCase() === 'r' || p.toLowerCase() === 'q')) return true;
+          break;
+        }
+        nr += dr; nc += dc;
       }
     }
     return false;
@@ -241,6 +271,7 @@ class GameState {
     this.lanHistory = []; // LAN Strings for opening book
     this.moveAnalysis = []; // Stores background evaluation objects per move
     this.captured = { w: [], b: [] };
+    this.stateHashes = {};
     this.stateStack = []; // Deep copies for Undo
     this.isGameOver = false;
     this.result = null;
@@ -259,6 +290,7 @@ class GameState {
       history: [...this.history],
       lanHistory: [...this.lanHistory],
       moveAnalysis: [...this.moveAnalysis],
+      stateHashes: { ...this.stateHashes },
       isGameOver: this.isGameOver,
       result: this.result,
       resultProcessed: this.resultProcessed
@@ -276,6 +308,7 @@ class GameState {
     this.history = [...state.history];
     this.lanHistory = [...state.lanHistory];
     this.moveAnalysis = state.moveAnalysis ? [...state.moveAnalysis] : [];
+    this.stateHashes = state.stateHashes ? { ...state.stateHashes } : {};
     this.isGameOver = state.isGameOver;
     this.result = state.result;
     this.resultProcessed = state.resultProcessed;
@@ -357,6 +390,9 @@ class GameState {
 
     if (inCheck) notation += '+';
 
+    let bHash = this.board.map(r=>r.join('')).join('') + this.turn;
+    this.stateHashes[bHash] = (this.stateHashes[bHash] || 0) + 1;
+
     if (oppMoves.length === 0) {
       if (inCheck) {
         notation = notation.replace('+', '#');
@@ -369,6 +405,9 @@ class GameState {
     } else if (this.halfMoves >= 100) {
       this.isGameOver = true;
       this.result = 'Draw by Fifty-Move Rule';
+    } else if (this.stateHashes[bHash] >= 3) {
+      this.isGameOver = true;
+      this.result = 'Draw by Threefold Repetition';
     }
 
     if (!isSimulation) {
@@ -469,8 +508,8 @@ const aiEngine = {
       const bookMove = this.getBestBookMove(gameRef);
       if (bookMove) return bookMove;
     }
-    const depths = { 1: 1, 2: 2, 3: 4 };
-    const maxDepth = depths[depthLevel] || 2;
+    const depths = { 1: 2, 2: 3, 3: 4 };
+    const maxDepth = depths[depthLevel] || 3;
     // Clone core cleanly for search
     let clone = new GameState();
     clone.restore(gameRef.clone());
@@ -824,17 +863,17 @@ function render() {
     }
   }
 
-  // Draw arrow if Reviewing or Hinting
-  if (settings.arrows !== false) {
+  // Draw arrow ONLY if Reviewing
+  if (settings.arrows !== false && isReviewMode && reviewCurrentMoveIndex > 0) {
     let arrowMove = null;
-    if (isReviewMode && reviewCurrentMoveIndex >= 0) {
-       const ana = game.moveAnalysis[reviewCurrentMoveIndex];
-       if (ana && ana.classification !== 'Best' && ana.classification !== 'Good') {
-          // Can parse best LAN from bestNotation if we built an engine mapping, but for simplicity skip for now or rely on hint arrows
-       }
-    } else if (lastMoveHint && (isReviewMode || gameMode!=='pvp')) {
-        // Draw last move
-        arrowMove = lastMoveHint;
+    const prevMoveStr = game.lanHistory[reviewCurrentMoveIndex - 1];
+    if (prevMoveStr && prevMoveStr.length >= 4) {
+      const files = 'abcdefgh';
+      const ranks = '87654321';
+      arrowMove = {
+        from: {c: files.indexOf(prevMoveStr[0]), r: ranks.indexOf(prevMoveStr[1])},
+        to: {c: files.indexOf(prevMoveStr[2]), r: ranks.indexOf(prevMoveStr[3])}
+      };
     }
 
     if (arrowMove) {
@@ -845,7 +884,7 @@ function render() {
        
        const x1 = (fc * 12.5) + 6.25; const y1 = (fr * 12.5) + 6.25;
        const x2 = (dc * 12.5) + 6.25; const y2 = (dr * 12.5) + 6.25;
-       arrowsHTML = `<svg id="arrows-layer"><defs><marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><polygon points="0 0, 6 3, 0 6" fill="rgba(245, 158, 11, 0.7)"/></marker></defs><line x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%" stroke="rgba(245, 158, 11, 0.7)" stroke-width="3%" marker-end="url(#arrowhead)"/></svg>`;
+       arrowsHTML = `<svg id="arrows-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10;"><defs><marker id="arrowhead" markerWidth="4" markerHeight="4" refX="3.5" refY="2" orient="auto"><polygon points="0 0, 4 2, 0 4" fill="rgba(245, 158, 11, 0.8)"/></marker></defs><line x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%" stroke="rgba(245, 158, 11, 0.8)" stroke-width="1.5%" marker-end="url(#arrowhead)"/></svg>`;
     }
   }
   
