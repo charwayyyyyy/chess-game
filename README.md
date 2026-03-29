@@ -45,6 +45,25 @@ The application is structured into clearly defined modules that govern different
 
 ---
 
+## 📱 Progressive Web App (PWA) Installability
+
+This game functions as a fully offline-capable, natively installable Progressive Web App.
+
+- **Offline Support:** Once launched or installed via a browser, it registers a strictly scoped background Service Worker caching the entire local architecture (`HTML`, `CSS`, `JS`, and vector icons). You can fully execute deep AI calculations in Airplane Mode!
+- **Zero-Block Updates:** Utilizing the *Stale-While-Revalidate* routing strategy, the app loads sequentially from the cache *instantaneously* guaranteeing you never meet a frozen blank screen, while it fetches the newest bug-fixes transparently in the background, making them ready directly for your next launch!
+- **Homescreen UI Polish:** Hand-tuned for standalone mobile execution:
+  - Disables iOS/Android bounce & pull-to-refresh overscroll elasticity.
+  - Sits flush around top notches and swiping bounds naturally using dynamic CSS `safe-area-inset` coordinates.
+  - Supresses standard web artifacts like link highlighting flashes and pinch-zooming boundaries.
+- **Apple iOS Compatibility:** Built compliant with Safari engine limitations, strictly supplying valid transparent PNG variant sizes arrays mapped expressly directly to native `apple-touch-icon` meta properties ensuring seamless homescreen rendering.
+
+### PWA Architecture Nodes
+The PWA behavior depends organically on natively injected local files without external CDNs:
+- `manifest.webmanifest` - The core metadata tracking names, theming colors (`#1e293b`), standalone intent, and `asset/icons` endpoints.
+- `service-worker.js` - Local cache controller governing the background fetches safely supporting logic updates without breaking `script.js` worker threads.
+
+---
+
 ## 🚀 Execution & Setup
 
 Simply open `index.html` in any modern web browser to play. 

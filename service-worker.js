@@ -1,17 +1,20 @@
-const CACHE_NAME = 'chess-pwa-v1';
+const CACHE_NAME = 'chess-pwa-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './style.css',
   './script.js',
   './manifest.webmanifest',
-  './icon.svg'
+  './icon.svg',
+  './assets/icons/icon-192.png',
+  './assets/icons/icon-512.png',
+  './assets/icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      return cache.addAll(ASSETS_TO_CACHE).catch(() => {});
     })
   );
   self.skipWaiting();
@@ -33,21 +36,24 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+  if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) {
+    return;
+  }
+
   e.respondWith(
     caches.match(e.request).then((cachedResponse) => {
-      // Network first for logic/ui file changes, fallback to cache
-      return fetch(e.request).then((networkResponse) => {
-        const clonedResponse = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          // Do not cache external dynamic things arbitrarily, stick to main origins
-          if (e.request.url.startsWith(self.location.origin)) {
+      const fetchPromise = fetch(e.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.ok) {
+          const clonedResponse = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
             cache.put(e.request, clonedResponse);
-          }
-        });
+          });
+        }
         return networkResponse;
-      }).catch(() => {
-        return cachedResponse;
+      }).catch((err) => {
+        if (!cachedResponse) throw err;
       });
+      return cachedResponse || fetchPromise;
     })
   );
 });
