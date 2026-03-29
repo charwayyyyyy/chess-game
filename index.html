@@ -102,14 +102,20 @@
         </div>
 
         <div class="panel captured-panel">
-          <h3>Captured Pieces</h3>
-          <div class="captured-group">
-            <div class="captured-row white-captures" id="white-captures"></div>
-            <span class="adv-badge hidden" id="white-adv"></span>
+          <h3 style="display: flex; justify-content: space-between;"><span>Captured Pieces</span> <span>Time</span></h3>
+          <div class="captured-group" style="justify-content: space-between;">
+            <div style="display:flex; gap:1rem; align-items:center;">
+              <div class="captured-row white-captures" id="white-captures"></div>
+              <span class="adv-badge hidden" id="white-adv"></span>
+            </div>
+            <div class="timer-display" id="timer-b" style="font-family: monospace; font-size: 1.5rem; font-weight: 600; padding: 0.2rem 0.6rem; background: var(--btn-bg); border-radius: 8px;">--:--</div>
           </div>
-          <div class="captured-group">
-            <div class="captured-row black-captures" id="black-captures"></div>
-            <span class="adv-badge hidden" id="black-adv"></span>
+          <div class="captured-group" style="justify-content: space-between;">
+            <div style="display:flex; gap:1rem; align-items:center;">
+              <div class="captured-row black-captures" id="black-captures"></div>
+              <span class="adv-badge hidden" id="black-adv"></span>
+            </div>
+            <div class="timer-display" id="timer-w" style="font-family: monospace; font-size: 1.5rem; font-weight: 600; padding: 0.2rem 0.6rem; background: var(--btn-bg); border-radius: 8px;">--:--</div>
           </div>
         </div>
 
@@ -147,6 +153,15 @@
             <label class="radio-btn"><input type="radio" name="ai-difficulty" value="1"> Easy</label>
             <label class="radio-btn"><input type="radio" name="ai-difficulty" value="2" checked> Medium</label>
             <label class="radio-btn"><input type="radio" name="ai-difficulty" value="3"> Hard</label>
+          </div>
+        </div>
+        <div class="setting-group">
+          <label class="setting-title">Time Control</label>
+          <div class="radio-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <label class="radio-btn" style="padding: 0.5rem;"><input type="radio" name="time-control" value="0" checked> None</label>
+            <label class="radio-btn" style="padding: 0.5rem;"><input type="radio" name="time-control" value="3"> Blitz (3m)</label>
+            <label class="radio-btn" style="padding: 0.5rem;"><input type="radio" name="time-control" value="10"> Rapid (10m)</label>
+            <label class="radio-btn" style="padding: 0.5rem;"><input type="radio" name="time-control" value="30"> Classic (30m)</label>
           </div>
         </div>
         <div class="modal-actions full-width">

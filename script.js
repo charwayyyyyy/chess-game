@@ -712,6 +712,9 @@ let currentLegalMoves = [];
 let pendingPromo = null;
 let gameMode = 'pvp'; // 'pvp', 'pvc-w', 'pvc-b'
 let aiDifficulty = 2; // 1,2,3
+let timeControl = 0;
+let timerW = 0, timerB = 0;
+let timerInterval = null;
 let isBoardLocked = false;
 let lastMoveHint = null; // {from, to}
 
@@ -734,6 +737,63 @@ const elBlackAdv = document.getElementById('black-adv');
 const settings = { coords: true, hints: true, sound: false, theme: 'classic' };
 const userStats = { elo: 1200 };
 let biggestBlunder = null;
+
+function formatTime(sec) {
+  if (sec <= 0) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function updateTimerDisplay() {
+  const elW = document.getElementById('timer-w');
+  const elB = document.getElementById('timer-b');
+  
+  if (timeControl === 0) {
+    if(elW) { elW.innerText = '--:--'; elW.style.color = ''; }
+    if(elB) { elB.innerText = '--:--'; elB.style.color = ''; }
+    return;
+  }
+  
+  if(elW) {
+    elW.innerText = formatTime(timerW);
+    elW.style.color = (timerW <= 30 && timerW > 0) ? 'var(--danger)' : '';
+  }
+  if(elB) {
+    elB.innerText = formatTime(timerB);
+    elB.style.color = (timerB <= 30 && timerB > 0) ? 'var(--danger)' : '';
+  }
+}
+
+function startTimer() {
+  clearInterval(timerInterval);
+  updateTimerDisplay();
+  if (timeControl === 0 || game.isGameOver || isReviewMode) return;
+  
+  timerInterval = setInterval(() => {
+    if (game.isGameOver || isReviewMode) {
+      clearInterval(timerInterval);
+      return;
+    }
+    
+    if (game.turn === 'w') timerW--;
+    else timerB--;
+    
+    updateTimerDisplay();
+    
+    if (timerW <= 0) {
+      clearInterval(timerInterval);
+      game.isGameOver = true;
+      game.result = "Black Wins on Time";
+      render();
+    } else if (timerB <= 0) {
+      clearInterval(timerInterval);
+      game.isGameOver = true;
+      game.result = "White Wins on Time";
+      render();
+    }
+  }, 1000);
+}
 
 function loadLocal() {
   const s = localStorage.getItem('chess-settings-v2');
@@ -1215,11 +1275,17 @@ document.getElementById('btn-start-game').onclick = () => {
   document.getElementById('start-modal').classList.add('hidden');
   gameMode = document.querySelector('input[name="game-mode"]:checked').value;
   aiDifficulty = parseInt(document.querySelector('input[name="ai-difficulty"]:checked').value);
+  timeControl = parseInt(document.querySelector('input[name="time-control"]:checked').value);
   game.reset();
   biggestBlunder = null;
   lastMoveHint = null;
   selectedSquare = null;
   currentLegalMoves = [];
+  
+  if (timeControl > 0) {
+    timerW = timeControl * 60;
+    timerB = timeControl * 60;
+  }
   
   if (gameMode === 'pvc-b') {
     document.getElementById('chess-board').classList.add('flipped');
@@ -1228,6 +1294,7 @@ document.getElementById('btn-start-game').onclick = () => {
   }
 
   render();
+  startTimer();
   if (gameMode === 'pvc-b') triggerAITurn(); // AI plays white
 };
 
@@ -1303,6 +1370,10 @@ document.getElementById('btn-import-pgn').onclick = () => {
   const moves = pgn.replace(/\d+\./g, '').trim().split(/\s+/);
   game.reset();
   gameMode = 'pvp';
+  timeControl = 0;
+  clearInterval(timerInterval);
+  updateTimerDisplay();
+  
   for (let mNotation of moves) {
     const legs = rulesEngine.getAllLegalMoves(game.board, game.turn, game.castling, game.epSquare);
     let found = null;
