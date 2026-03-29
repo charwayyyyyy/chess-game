@@ -545,6 +545,29 @@ button.btn.primary:hover {
   transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
+@keyframes winGlow {
+  0% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.2), var(--shadow-lg); }
+  50% { box-shadow: 0 0 30px rgba(16, 185, 129, 0.6), var(--shadow-lg); }
+  100% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.2), var(--shadow-lg); }
+}
+
+@keyframes lossShake {
+  0% { transform: scale(1) translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: scale(1) translateX(-3px); }
+  20%, 40%, 60%, 80% { transform: scale(1) translateX(3px); }
+  100% { transform: scale(1) translateX(0); }
+}
+
+.modal.game-over.win-anim {
+  animation: winGlow 2s infinite ease-in-out;
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.modal.game-over.loss-anim {
+  animation: lossShake 0.6s cubic-bezier(.36,.07,.19,.97) both;
+  border-color: rgba(220, 53, 69, 0.5);
+}
+
 .modal-overlay.hidden .fade-in-scale {
   transform: scale(0.9);
 }

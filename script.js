@@ -587,6 +587,9 @@ const aiEngine = {
     }
 
     let score = 0;
+    let whitePawns = [0,0,0,0,0,0,0,0];
+    let blackPawns = [0,0,0,0,0,0,0,0];
+
     for (let r=0; r<8; r++) {
       for (let c=0; c<8; c++) {
         const p = state.board[r][c];
@@ -604,10 +607,45 @@ const aiEngine = {
             // Dampen positional value compared to raw material (divide by 10)
             val += pstVal * 0.1;
           }
+
+          if (ptStr === 'P') {
+            if (isWhite(p)) whitePawns[c]++;
+            else blackPawns[c]++;
+          }
+          
+          // Mobility and position control: Center proximity bonus for non-pawns
+          if (ptStr !== 'P' && ptStr !== 'K') {
+            if (r >= 3 && r <= 4 && c >= 3 && c <= 4) val += 1.5;
+            else if (r >= 2 && r <= 5 && c >= 2 && c <= 5) val += 0.5;
+          }
+
           if (isWhite(p)) score += val; else score -= val;
         }
       }
     }
+
+    // Pawn structure evaluation
+    for (let c=0; c<8; c++) {
+      const wP = whitePawns[c];
+      const bP = blackPawns[c];
+      
+      // Doubled pawns penalty (1.5 = 0.15 of a pawn)
+      if (wP > 1) score -= 1.5 * (wP - 1);
+      if (bP > 1) score += 1.5 * (bP - 1);
+      
+      // Isolated pawns penalty
+      if (wP > 0) {
+        let left = c > 0 ? whitePawns[c-1] : 0;
+        let right = c < 7 ? whitePawns[c+1] : 0;
+        if (left === 0 && right === 0) score -= 1.5;
+      }
+      if (bP > 0) {
+        let left = c > 0 ? blackPawns[c-1] : 0;
+        let right = c < 7 ? blackPawns[c+1] : 0;
+        if (left === 0 && right === 0) score += 1.5;
+      }
+    }
+
     return score;
   }
 };
@@ -937,6 +975,18 @@ function render() {
 
     document.getElementById('game-over-title').innerText = game.result.includes('Win') ? "Checkmate!" : "Draw!";
     document.getElementById('game-over-message').innerText = game.result;
+
+    const goModal = document.querySelector('.modal.game-over');
+    if (goModal) {
+      goModal.classList.remove('win-anim', 'loss-anim');
+      if (game.result.includes('Win') && gameMode !== 'pvp') {
+        const isUserWhite = gameMode === 'pvc-w';
+        if (game.result.includes('White Wins') && isUserWhite) goModal.classList.add('win-anim');
+        else if (game.result.includes('Black Wins') && !isUserWhite) goModal.classList.add('win-anim');
+        else goModal.classList.add('loss-anim');
+      }
+    }
+
     document.getElementById('game-over-modal').classList.remove('hidden');
   } else {
     elindicatorDot.style.display = 'block';
@@ -1170,6 +1220,13 @@ document.getElementById('btn-start-game').onclick = () => {
   lastMoveHint = null;
   selectedSquare = null;
   currentLegalMoves = [];
+  
+  if (gameMode === 'pvc-b') {
+    document.getElementById('chess-board').classList.add('flipped');
+  } else {
+    document.getElementById('chess-board').classList.remove('flipped');
+  }
+
   render();
   if (gameMode === 'pvc-b') triggerAITurn(); // AI plays white
 };
