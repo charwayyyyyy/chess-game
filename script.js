@@ -817,10 +817,12 @@ function saveLocal() {
   render();
 }
 
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let audioCtx = null;
 function playAudio(type) {
-  if (!settings.sound || audioCtx.state === 'suspended') return;
+  if (!settings.sound) return;
   try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') return;
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     osc.connect(g); g.connect(audioCtx.destination);
@@ -831,7 +833,9 @@ function playAudio(type) {
     g.gain.setValueAtTime(0.08, audioCtx.currentTime);
     g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
     osc.start(); osc.stop(audioCtx.currentTime + 0.15);
-  } catch(e){}
+  } catch(e) {
+    console.error("Audio failed", e);
+  }
 }
 
 let analysisWorker = new Worker('script.js');
@@ -951,7 +955,24 @@ function render() {
 
       if (p !== '') {
         const pEl = document.createElement('div');
-        pEl.className = `piece ${isWhite(p) ? 'white-piece' : 'black-piece'}`;
+        let classes = ['piece', isWhite(p) ? 'white-piece' : 'black-piece'];
+        
+        if (game.isGameOver && !isReviewMode && p.toLowerCase() === 'k') {
+           const isWhiteK = isWhite(p);
+           const whiteWon = game.result.includes('White Wins');
+           const blackWon = game.result.includes('Black Wins');
+           const draw = game.result.includes('Draw');
+           
+           if (draw) {
+             classes.push('anim-draw');
+           } else if ((whiteWon && isWhiteK) || (blackWon && !isWhiteK)) {
+             classes.push('anim-win-jump');
+           } else if ((whiteWon && !isWhiteK) || (blackWon && isWhiteK)) {
+             classes.push('anim-lose-break');
+           }
+        }
+        
+        pEl.className = classes.join(' ');
         pEl.innerText = UNICODE_PIECES[p];
         sq.appendChild(pEl);
       }
@@ -1162,13 +1183,17 @@ function showPromoModal(cStr) {
 // ==========================================
 // 6. DOM EVENT BINDINGS
 // ==========================================
-document.addEventListener('click', () => { if (audioCtx.state === 'suspended') audioCtx.resume(); }, {once: true});
+document.addEventListener('click', () => { 
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); 
+}, {once: true});
 
 document.querySelectorAll('input[name="game-mode"]').forEach(r => {
   r.addEventListener('change', (e) => {
     document.getElementById('difficulty-group').style.display = e.target.value === 'pvp' ? 'none' : 'block';
   });
 });
+const initialGm = document.querySelector('input[name="game-mode"]:checked');
+if (initialGm) document.getElementById('difficulty-group').style.display = initialGm.value === 'pvp' ? 'none' : 'block';
 
 function startReviewMode() {
   isReviewMode = true;
@@ -1272,30 +1297,40 @@ document.getElementById('btn-exit-review').onclick = () => {
 };
 
 document.getElementById('btn-start-game').onclick = () => {
-  document.getElementById('start-modal').classList.add('hidden');
-  gameMode = document.querySelector('input[name="game-mode"]:checked').value;
-  aiDifficulty = parseInt(document.querySelector('input[name="ai-difficulty"]:checked').value);
-  timeControl = parseInt(document.querySelector('input[name="time-control"]:checked').value);
-  game.reset();
-  biggestBlunder = null;
-  lastMoveHint = null;
-  selectedSquare = null;
-  currentLegalMoves = [];
-  
-  if (timeControl > 0) {
-    timerW = timeControl * 60;
-    timerB = timeControl * 60;
-  }
-  
-  if (gameMode === 'pvc-b') {
-    document.getElementById('chess-board').classList.add('flipped');
-  } else {
-    document.getElementById('chess-board').classList.remove('flipped');
-  }
+  try {
+    const modeEl = document.querySelector('input[name="game-mode"]:checked');
+    const diffEl = document.querySelector('input[name="ai-difficulty"]:checked');
+    const timeEl = document.querySelector('input[name="time-control"]:checked');
+    
+    gameMode = modeEl ? modeEl.value : 'pvp';
+    aiDifficulty = diffEl ? parseInt(diffEl.value) : 2;
+    timeControl = timeEl ? parseInt(timeEl.value) : 0;
+    
+    document.getElementById('start-modal').classList.add('hidden');
+    game.reset();
+    biggestBlunder = null;
+    lastMoveHint = null;
+    selectedSquare = null;
+    currentLegalMoves = [];
+    
+    if (timeControl > 0) {
+      timerW = timeControl * 60;
+      timerB = timeControl * 60;
+    }
+    
+    if (gameMode === 'pvc-b') {
+      document.getElementById('chess-board').classList.add('flipped');
+    } else {
+      document.getElementById('chess-board').classList.remove('flipped');
+    }
 
-  render();
-  startTimer();
-  if (gameMode === 'pvc-b') triggerAITurn(); // AI plays white
+    render();
+    startTimer();
+    if (gameMode === 'pvc-b') triggerAITurn(); // AI plays white
+  } catch (err) {
+    console.error("Start Game Error:", err);
+    alert("Error starting game: " + err.message);
+  }
 };
 
 document.getElementById('btn-new-game').onclick = () => {

@@ -719,3 +719,34 @@ button.btn.primary:hover {
   .history-list-wrapper { max-height: 180px; }
   .board-section { gap: 0.75rem; }
 }
+@keyframes winJump {
+  0%, 100% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-30px) scale(1.1); }
+  50% { transform: translateY(0) scale(1); }
+  70% { transform: translateY(-15px) scale(1.05); }
+}
+
+@keyframes loseBreak {
+  0% { transform: rotate(0deg); }
+  20% { transform: rotate(-15deg); }
+  40% { transform: rotate(90deg) translate(10px, 10px); opacity: 0.6; }
+  100% { transform: rotate(90deg) translate(10px, 10px); opacity: 0.6; }
+}
+
+@keyframes drawSpin {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(0.8); opacity: 0.7; }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+.piece.anim-win-jump {
+  animation: winJump 1.5s ease-in-out infinite;
+  z-index: 20;
+}
+.piece.anim-lose-break {
+  animation: loseBreak 2s forwards;
+  transform-origin: bottom center;
+}
+.piece.anim-draw {
+  animation: drawSpin 3s linear infinite;
+}
