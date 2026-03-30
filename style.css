@@ -244,6 +244,7 @@ h1, h2, h3, .subtitle, .turn-indicator {
   overflow: hidden;
   box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
   margin: 0 auto;
+  touch-action: none;
 }
 
 .square {
@@ -711,13 +712,15 @@ button.btn.primary:hover {
     padding: max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
   }
   .app-header { margin-bottom: 1rem; }
+  .app-header h1 { font-size: 1.8rem; letter-spacing: 0.2rem; }
   .panel { padding: 1rem; }
-  .piece { font-size: 2.2rem; }
-  .modal { padding: 1.5rem; width: 95%; }
+  .piece { font-size: calc(11.5vw - 0.5rem); }
+  .modal { padding: 1.25rem; width: 95%; max-height: 90vh; overflow-y: auto;}
   
   /* Make sure history/panels aren't excessively tall on tiny screens */
   .history-list-wrapper { max-height: 180px; }
   .board-section { gap: 0.75rem; }
+  .radio-group[style*="grid"] { grid-template-columns: 1fr !important; }
 }
 @keyframes winJump {
   0%, 100% { transform: translateY(0) scale(1); }

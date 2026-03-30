@@ -1,13 +1,11 @@
-const CACHE_NAME = 'chess-pwa-v2';
+const CACHE_NAME = 'chess-pwa-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './style.css',
   './script.js',
   './manifest.webmanifest',
-  './icon.svg',
-  './assets/icons/icon-192.png',
-  './assets/icons/icon-512.png',
+  './assets/icons/icon.png',
   './assets/icons/apple-touch-icon.png'
 ];
 
