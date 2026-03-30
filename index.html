@@ -1,19 +1,41 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>THE CHESS GAME</title>
-  
+  <title>The Chess Game — Premium AI Chess</title>
+  <meta name="description" content="Play premium local-first AI Chess with multiple difficulty levels, time controls (Blitz, Rapid, Classic), game review, and ELO tracking. No sign-up required.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://thechessgame.vercel.app/">
+
   <!-- PWA & Mobile Meta -->
   <meta name="theme-color" content="#1e293b">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/png" href="assets/icons/icon.png">
-  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/icons/icon-512.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Chess">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="The Chess Game">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://thechessgame.vercel.app/">
+  <meta property="og:title" content="The Chess Game — Premium AI Chess">
+  <meta property="og:description" content="Play premium local-first AI Chess with multiple difficulty levels, time controls, game review, and ELO tracking. No sign-up required.">
+  <meta property="og:image" content="https://thechessgame.vercel.app/assets/screenshots/screenshot-desktop.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="720">
+  <meta property="og:site_name" content="The Chess Game">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="The Chess Game — Premium AI Chess">
+  <meta name="twitter:description" content="Play premium local-first AI Chess with multiple difficulty levels, time controls, and ELO tracking.">
+  <meta name="twitter:image" content="https://thechessgame.vercel.app/assets/screenshots/screenshot-desktop.png">
 
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -237,8 +259,20 @@
 
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+      window.addEventListener('load', async () => {
+        try {
+          const reg = await navigator.serviceWorker.register('./service-worker.js');
+
+          // Request periodic background sync if supported
+          if ('periodicSync' in reg) {
+            const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+            if (status.state === 'granted') {
+              await reg.periodicSync.register('refresh-chess-content', { minInterval: 24 * 60 * 60 * 1000 });
+            }
+          }
+        } catch (_) {
+          // Service worker registration failed silently
+        }
       });
     }
   </script>

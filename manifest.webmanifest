@@ -1,18 +1,102 @@
 {
+  "id": "/",
   "name": "The Chess Game",
   "short_name": "Chess",
-  "description": "Premium local-first AI Chess Game.",
-  "start_url": ".",
+  "description": "Premium local-first AI Chess Game with multiple difficulty levels, time controls, game review, and ELO tracking. Play vs a friend or a built-in AI engine.",
+  "start_url": "/",
+  "scope": "/",
+  "lang": "en",
+  "dir": "ltr",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "background_color": "#1e293b",
-  "theme_color": "#f8fafc",
+  "theme_color": "#1e293b",
   "orientation": "portrait",
+  "categories": ["games", "entertainment"],
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
   "icons": [
     {
-      "src": "assets/icons/icon.png",
-      "sizes": "192x192 512x512 1024x1024",
+      "src": "assets/icons/icon-192.png",
+      "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "assets/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "assets/screenshots/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "The Chess Game — Desktop View"
+    },
+    {
+      "src": "assets/screenshots/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "The Chess Game — Mobile View"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Game",
+      "short_name": "New Game",
+      "description": "Start a new chess game immediately",
+      "url": "/?action=new-game",
+      "icons": [
+        {
+          "src": "assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Play vs AI",
+      "short_name": "vs AI",
+      "description": "Start a new game against the AI",
+      "url": "/?action=vs-ai",
+      "icons": [
+        {
+          "src": "assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
 }
+
